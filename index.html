@@ -1,0 +1,3166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>제곽 자유 게시판</title>
+  <script>
+    try {
+      if (localStorage.getItem("jgwDarkMode") === "1") document.documentElement.classList.add("dark");
+    } catch (e) { /* ignore */ }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: "class" };
+  </script>
+  <style>
+    body {
+      font-family: "Pretendard", "Noto Sans KR", system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      box-shadow: 0 6px 24px rgba(15, 23, 42, 0.05);
+    }
+    .board-canvas {
+      touch-action: none;
+      cursor: crosshair;
+      border-radius: 0.75rem;
+      border: 1px solid #cbd5e1;
+      background-color: #fff;
+      background-image:
+        linear-gradient(to right, #f1f5f9 1px, transparent 1px),
+        linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .board-canvas.eraser-mode {
+      cursor: cell;
+    }
+    .board-tool-btn {
+      border-radius: 0.5rem;
+      border: 1px solid #cbd5e1;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      line-height: 1.25;
+      color: #334155;
+      background: #fff;
+    }
+    .board-tool-btn:hover {
+      background: #f8fafc;
+    }
+    .board-tool-btn-active {
+      border-color: #1e293b;
+      background: #1e293b;
+      color: #fff;
+    }
+    .whiteboard-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .whiteboard-sub-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 640px) {
+      .whiteboard-sub-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .reported-item {
+      background: #fff1f2;
+      border-color: #fecdd3 !important;
+    }
+    #whiteboardToast,
+    #adminAlertToast {
+      transition: opacity 0.25s ease;
+    }
+    #feedbackFab {
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 2px;
+    }
+    .calendar-day {
+      min-height: 4.5rem;
+      border-radius: 0.65rem;
+      transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.2s ease;
+    }
+    @media (min-width: 640px) {
+      .calendar-day {
+        min-height: 5.75rem;
+      }
+    }
+    .calendar-day-flash {
+      animation: calendarFlash 0.9s ease;
+    }
+    @keyframes calendarFlash {
+      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.65); }
+      70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    .nav-tab {
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 1rem 0.5rem;
+      font-size: 1.0625rem;
+      font-weight: 600;
+      line-height: 1.25;
+      color: #64748b;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      text-align: center;
+      transition: color 0.15s ease;
+    }
+    @media (min-width: 640px) {
+      .nav-tab {
+        padding: 1.125rem 0.75rem;
+        font-size: 1.125rem;
+      }
+    }
+    .nav-tab:hover {
+      color: #2563eb;
+      background: transparent;
+    }
+    .nav-tab-active {
+      color: #2563eb;
+      font-weight: 800;
+      background: transparent;
+    }
+    .nav-tab-active:hover {
+      color: #1d4ed8;
+      background: transparent;
+    }
+    .site-title-block {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .site-title-star {
+      flex-shrink: 0;
+      width: 1.65rem;
+      height: 1.65rem;
+      pointer-events: none;
+      transform: rotate(-10deg);
+    }
+    .site-title-star-path {
+      fill: none;
+      stroke: #2563eb;
+      stroke-width: 2.35;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .dice-visual {
+      width: 100px;
+      height: 100px;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #ffffff, #e2e8f0);
+      box-shadow:
+        6px 6px 16px rgba(15, 23, 42, 0.12),
+        inset 2px 2px 6px rgba(255, 255, 255, 0.9);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      padding: 12px;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .dice-visual.rolling {
+      animation: diceWobble 0.1s ease-in-out infinite;
+    }
+    @keyframes diceWobble {
+      0%, 100% { transform: rotate(-6deg) scale(0.98); }
+      50% { transform: rotate(8deg) scale(1.02); }
+    }
+    .dice-pip {
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      background: #0f172a;
+      margin: auto;
+      opacity: 0;
+      transition: opacity 0.08s ease;
+    }
+    .dice-pip.on {
+      opacity: 1;
+    }
+    #ladderSvg {
+      max-width: 100%;
+      height: auto;
+    }
+    .ladder-path-dot {
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+    }
+    .ladder-name-btn .ladder-name-hit {
+      fill: transparent;
+      transition: fill 0.15s ease;
+    }
+    .ladder-name-btn:hover .ladder-name-hit {
+      fill: rgba(59, 130, 246, 0.12);
+    }
+    .ladder-name-btn text {
+      pointer-events: none;
+    }
+    .coin-visual {
+      width: 100px;
+      height: 100px;
+      border-radius: 9999px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #0f172a;
+      background: linear-gradient(145deg, #fde68a, #f59e0b);
+      box-shadow:
+        6px 6px 16px rgba(15, 23, 42, 0.12),
+        inset 2px 2px 8px rgba(255, 255, 255, 0.5);
+      transition: transform 0.15s ease;
+    }
+    .coin-visual.flipping {
+      animation: coinFlip 0.12s ease-in-out infinite;
+    }
+    .coin-visual.coin-tails {
+      background: linear-gradient(145deg, #e2e8f0, #94a3b8);
+    }
+    @keyframes coinFlip {
+      0%, 100% { transform: rotateY(0deg) scale(0.96); }
+      50% { transform: rotateY(180deg) scale(1.04); }
+    }
+    .reaction-btn {
+      width: 100%;
+      max-width: 28rem;
+      min-height: 7rem;
+      border-radius: 1rem;
+      border: 2px solid #cbd5e1;
+      font-size: 1.125rem;
+      font-weight: 700;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      cursor: pointer;
+    }
+    .reaction-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.85;
+    }
+    .reaction-idle {
+      background: #f1f5f9;
+      color: #334155;
+    }
+    .reaction-waiting {
+      background: #fef3c7;
+      border-color: #f59e0b;
+      color: #92400e;
+    }
+    .reaction-ready {
+      background: #22c55e;
+      border-color: #16a34a;
+      color: #fff;
+    }
+    .reaction-early {
+      background: #fee2e2;
+      border-color: #f87171;
+      color: #991b1b;
+    }
+    .reaction-done {
+      background: #e0e7ff;
+      border-color: #818cf8;
+      color: #312e81;
+    }
+    .team-block {
+      border-radius: 0.75rem;
+      border: 1px solid #e2e8f0;
+      padding: 0.75rem 1rem;
+    }
+    .pinned-post {
+      border-color: #f59e0b !important;
+      background: linear-gradient(180deg, #fffbeb 0%, #ffffff 42%);
+    }
+    html.dark .pinned-post {
+      background: linear-gradient(180deg, #422006 0%, #1e293b 42%);
+      border-color: #fbbf24 !important;
+    }
+    html.dark {
+      color-scheme: dark;
+    }
+    html.dark body {
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    html.dark .card {
+      background: #1e293b;
+      border-color: #334155;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+    }
+    /* 그림판은 다크 모드에서도 캔버스만 흰 배경(검은 펜 선이 보이도록) */
+    html.dark .board-canvas {
+      border-color: #94a3b8;
+      background-color: #ffffff;
+      background-image:
+        linear-gradient(to right, #f1f5f9 1px, transparent 1px),
+        linear-gradient(to bottom, #f1f5f9 1px, transparent 1px);
+    }
+    html.dark .board-tool-btn {
+      background: #334155;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html.dark .board-tool-btn:hover {
+      background: #475569;
+    }
+    html.dark .board-tool-btn-active {
+      background: #f1f5f9;
+      color: #0f172a;
+      border-color: #f1f5f9;
+    }
+    html.dark .reported-item {
+      background: #450a0a;
+      border-color: #f87171 !important;
+    }
+    html.dark .nav-tab {
+      color: #94a3b8;
+    }
+    html.dark .nav-tab:hover,
+    html.dark .nav-tab-active {
+      color: #60a5fa;
+    }
+    html.dark .site-title-star-path {
+      stroke: #60a5fa;
+    }
+    html.dark .dice-visual {
+      background: linear-gradient(145deg, #334155, #1e293b);
+    }
+    html.dark .dice-pip {
+      background: #f1f5f9;
+    }
+    html.dark .coin-visual {
+      color: #0f172a;
+    }
+    html.dark .reaction-idle {
+      background: #334155;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html.dark .reaction-waiting {
+      background: #422006;
+      border-color: #b45309;
+      color: #fde68a;
+    }
+    html.dark .reaction-ready {
+      background: #15803d;
+      border-color: #22c55e;
+      color: #fff;
+    }
+    html.dark .reaction-early {
+      background: #450a0a;
+      border-color: #dc2626;
+      color: #fecaca;
+    }
+    html.dark .reaction-done {
+      background: #312e81;
+      border-color: #6366f1;
+      color: #e0e7ff;
+    }
+    html.dark .team-block {
+      border-color: #475569;
+      background: #1e293b;
+    }
+    html.dark input,
+    html.dark textarea,
+    html.dark select {
+      background: #0f172a !important;
+      border-color: #475569 !important;
+      color: #e2e8f0 !important;
+    }
+    html.dark input::placeholder,
+    html.dark textarea::placeholder {
+      color: #64748b;
+    }
+    html.dark .text-slate-800,
+    html.dark .text-slate-900 {
+      color: #f1f5f9 !important;
+    }
+    html.dark .text-slate-700 {
+      color: #cbd5e1 !important;
+    }
+    html.dark .text-slate-600,
+    html.dark .text-slate-500 {
+      color: #94a3b8 !important;
+    }
+    html.dark .bg-slate-50,
+    html.dark .bg-slate-100 {
+      background-color: #334155 !important;
+    }
+    html.dark .bg-white {
+      background-color: #1e293b !important;
+    }
+    html.dark .border-slate-100,
+    html.dark .border-slate-200,
+    html.dark .border-slate-300 {
+      border-color: #475569 !important;
+    }
+    html.dark .hover\:bg-slate-50:hover,
+    html.dark .hover\:bg-slate-100:hover {
+      background-color: #334155 !important;
+    }
+    html.dark .hover\:bg-white:hover {
+      background-color: #475569 !important;
+    }
+    html.dark .hover\:bg-red-50:hover {
+      background-color: #450a0a !important;
+    }
+    html.dark .hover\:bg-rose-50:hover {
+      background-color: #4c0519 !important;
+    }
+    html.dark #feedbackFab {
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100">
+  <div id="whiteboardToast" class="pointer-events-none fixed left-1/2 top-4 z-[60] hidden -translate-x-1/2 rounded-xl border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg"></div>
+  <div id="nameModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4">
+    <div class="w-full max-w-md card p-6">
+      <h2 class="text-xl font-bold">실명 등록</h2>
+      <p class="mt-2 text-sm text-slate-600">
+        실명은 게시글·댓글 작성자로 표시됩니다. 관리자로 이용하려면 아래에서 선택 후 비밀번호를 입력하세요.
+      </p>
+      <label class="mt-4 block text-sm font-medium text-slate-700" for="realNameInput">실명</label>
+      <input id="realNameInput" type="text" maxlength="20" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="예: 홍길동" />
+      <label class="mt-4 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+        <input id="loginAsAdminCheck" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+        <span>관리자인가요? (선택 시 관리자 비밀번호 필요)</span>
+      </label>
+      <div id="adminPasswordRow" class="mt-3 hidden">
+        <label class="block text-sm font-medium text-slate-700" for="adminPasswordInput">관리자 비밀번호</label>
+        <input id="adminPasswordInput" type="password" maxlength="64" autocomplete="off" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="관리자 비밀번호" />
+      </div>
+      <p class="mt-2 text-xs text-slate-500">부관리자로 등록된 실명은 비밀번호 없이 저장만 해도 관리자로 로그인됩니다.</p>
+      <button id="saveNameBtn" class="mt-4 w-full rounded-xl bg-blue-600 py-2 font-semibold text-white hover:bg-blue-700">저장하고 시작</button>
+    </div>
+  </div>
+
+  <div id="feedbackModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4">
+    <div class="w-full max-w-md card p-6">
+      <h2 class="text-xl font-bold">피드백 · 오류 신고</h2>
+      <p class="mt-2 text-sm text-slate-600">관리자에게 전달됩니다. 화면 정보가 함께 붙을 수 있습니다.</p>
+      <form id="feedbackForm" class="mt-4 space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-slate-700" for="feedbackType">종류</label>
+          <select id="feedbackType" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500">
+            <option value="feedback">의견·피드백</option>
+            <option value="error">오류 신고</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700" for="feedbackMessage">내용</label>
+          <textarea id="feedbackMessage" rows="4" maxlength="800" required class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="불편한 점, 제안, 오류 상황을 적어주세요."></textarea>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="feedbackCancelBtn" class="flex-1 rounded-xl border border-slate-300 py-2 text-sm font-semibold hover:bg-slate-50">취소</button>
+          <button type="submit" class="flex-1 rounded-xl bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700">보내기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <button type="button" id="feedbackFab" class="fixed bottom-5 right-5 z-40 rounded-full bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700" title="피드백 보내기">피드백</button>
+  <div id="adminAlertToast" class="pointer-events-none fixed left-1/2 top-16 z-[60] hidden -translate-x-1/2 rounded-xl border border-violet-200 bg-violet-700 px-4 py-2 text-sm font-semibold text-white shadow-lg"></div>
+
+  <div class="mx-auto max-w-7xl p-4 md:p-6">
+    <header class="card mb-6 p-5">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="site-title-block">
+          <h1 class="text-2xl font-bold text-blue-600">제곽 자유 게시판</h1>
+          <svg class="site-title-star" viewBox="0 0 48 48" aria-hidden="true">
+            <path class="site-title-star-path" d="M23.2 5.8c.4 1.2.9 8.2 1.4 10.1 1.1.3 9.8 1.6 11.2 2.1-2.8 2.4-7.6 6.8-8.4 7.9 1.2 3.5 3.8 10.8 4.4 12.4-3.1-1.8-9.2-5.6-10.8-6.5-1.6.9-7.7 4.7-10.8 6.5.6-1.6 3.2-8.9 4.4-12.4-.8-1.1-5.6-5.5-8.4-7.9 1.4-.5 10.1-1.8 11.2-2.1.5-1.9 1-8.9 1.4-10.1.6 1.4 1.1 2.2 2.2 2.6 1.1-.4 1.6-1.2 2.2-2.6z" />
+          </svg>
+        </div>
+        <div class="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm">
+          <span class="font-medium">현재 사용자:</span>
+          <span id="currentUserName" class="font-bold text-blue-700">-</span>
+          <span id="adminBadge" class="hidden rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-200">관리자 모드</span>
+          <button type="button" id="darkModeToggle" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700" title="다크 모드">🌙</button>
+          <button id="changeNameBtn" class="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700">변경</button>
+        </div>
+      </div>
+      <div id="userWarningBanner" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"></div>
+      <div id="adminAlertBanner" class="mt-3 hidden rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+        <button type="button" id="goAdminAlertsBtn" class="w-full text-left font-medium hover:underline">
+          미확인 피드백·오류 <span id="adminAlertBannerCount">0</span>건 — 관리자 탭에서 확인
+        </button>
+      </div>
+    </header>
+
+    <nav id="appNav" class="card mb-6 flex w-full flex-nowrap items-stretch overflow-x-auto p-0">
+      <button type="button" data-page="home" class="nav-tab nav-tab-active">홈</button>
+      <button type="button" data-page="calendar" class="nav-tab">달력</button>
+      <button type="button" data-page="club" class="nav-tab">동아리</button>
+      <button type="button" data-page="whiteboard" class="nav-tab">그림판</button>
+      <button type="button" data-page="tools" class="nav-tab">미니게임</button>
+      <button type="button" data-page="links" class="nav-tab">바로가기</button>
+      <button type="button" data-page="files" class="nav-tab">파일</button>
+      <button type="button" id="navAdmin" data-page="admin" class="nav-tab hidden">관리자</button>
+    </nav>
+
+    <div id="page-home" class="app-page space-y-6">
+        <section class="card p-5">
+          <h2 class="text-xl font-bold">일반 게시판 (댓글 포함)</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">글은 등록 후 <strong>14일</strong>이 지나면 자동으로 삭제됩니다. 공지 고정 글은 <strong>30일</strong>까지 유지됩니다. 학사 일정은 상단 <strong>달력</strong> 탭에서 확인하세요.</p>
+          <form id="textPostForm" class="mt-4 grid grid-cols-1 gap-3">
+            <input id="textPostTitle" type="text" maxlength="80" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="제목" />
+            <textarea id="textPostContent" rows="4" maxlength="1200" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="내용"></textarea>
+            <button class="justify-self-start rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">글 등록</button>
+          </form>
+          <div id="textPostList" class="mt-5 space-y-3"></div>
+        </section>
+
+    </div>
+
+    <div id="page-calendar" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-xl font-bold">공동 학사 달력</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">날짜를 눌러 일정을 확인하고, 아래에서 바로 추가할 수 있습니다. 일정은 게시판과 별도로 유지됩니다.</p>
+
+          <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 sm:px-4 dark:border-slate-600">
+              <button type="button" id="calendarPrev" class="flex h-9 w-9 items-center justify-center rounded-full text-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" aria-label="이전 달">‹</button>
+              <div class="text-center">
+                <p id="calendarMonthLabel" class="text-base font-bold sm:text-lg">-</p>
+                <button type="button" id="calendarToday" class="mt-0.5 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">오늘로 이동</button>
+              </div>
+              <button type="button" id="calendarNext" class="flex h-9 w-9 items-center justify-center rounded-full text-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" aria-label="다음 달">›</button>
+            </div>
+
+            <div class="calendar-grid border-b border-slate-100 bg-slate-50 px-1 py-2 text-center text-xs font-semibold text-slate-500 sm:px-2 dark:border-slate-600 dark:bg-slate-900">
+              <span class="text-rose-500">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="text-blue-600">토</span>
+            </div>
+            <div id="calendarGrid" class="calendar-grid px-1 pb-2 sm:px-2"></div>
+          </div>
+
+          <p id="calendarSelectedLabel" class="mt-4 text-sm font-semibold text-slate-700 dark:text-slate-300">선택한 날짜</p>
+
+          <form id="calendarForm" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[auto_1fr_auto]">
+            <input id="calendarDate" type="date" required class="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-500" />
+            <input id="calendarText" type="text" maxlength="80" required class="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-500" placeholder="일정 내용 (예: 기말고사, 동아리 모임)" />
+            <button class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600">일정 추가</button>
+          </form>
+
+          <div id="calendarDayEvents" class="mt-4 space-y-2"></div>
+        </section>
+    </div>
+
+    <div id="page-club" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-xl font-bold">동아리 자랑 게시판 (사진 업로드)</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">사진 글도 등록 후 <strong>14일</strong>이 지나면 자동으로 삭제됩니다.</p>
+          <form id="clubPostForm" class="mt-4 grid grid-cols-1 gap-3">
+            <input id="clubPostTitle" type="text" maxlength="80" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="제목" />
+            <textarea id="clubPostContent" rows="3" maxlength="700" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="활동 소개"></textarea>
+            <input id="clubPostImage" type="file" accept="image/*" class="rounded-xl border border-slate-300 bg-white px-3 py-2" />
+            <button class="justify-self-start rounded-xl bg-fuchsia-600 px-4 py-2 font-semibold text-white hover:bg-fuchsia-700">게시</button>
+          </form>
+          <div id="clubPostList" class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2"></div>
+        </section>
+    </div>
+
+    <div id="page-whiteboard" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-xl font-bold">화이트보드</h2>
+          <p class="mt-1 text-sm text-slate-600">
+            위는 큰 그림판, 아래는 작은 그림판 2개입니다. 펜·지우개로 그린 뒤 [이 그림판 공유하기]를 누르면 다른 창에 스냅샷으로 동기화됩니다.
+          </p>
+          <div id="whiteboardWrap" class="mt-4"></div>
+        </section>
+    </div>
+
+    <div id="page-tools" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-lg font-bold">주사위</h2>
+          <p class="mt-1 text-sm text-slate-600">버튼을 누르면 주사위가 굴러가다 멈추며 면이 표시됩니다.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-8">
+            <div id="diceVisual" class="dice-visual" aria-hidden="true"></div>
+            <div class="min-w-0 flex-1">
+              <button type="button" id="rollDiceBtn" class="rounded-xl bg-indigo-600 px-6 py-2.5 font-semibold text-white shadow hover:bg-indigo-700 disabled:opacity-50">주사위 굴리기</button>
+              <p id="diceResult" class="mt-3 rounded-xl bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-900">위 주사위를 굴려 보세요.</p>
+            </div>
+          </div>
+        </section>
+        <section class="card p-5">
+          <h2 class="text-lg font-bold">사다리 타기</h2>
+          <p class="mt-1 text-sm text-slate-600">이름을 쉼표로 입력하고 <strong>당첨 칸 개수</strong>를 정한 뒤 <strong>사다리 그리기</strong>를 누르면 막대가 생깁니다. 맨 아래는 지정한 개수만큼 <strong>당첨</strong>, 나머지는 <strong>생존</strong>입니다. <strong>위쪽 이름을 클릭</strong>하면 그 사람이 맨 위에서 출발해 결과가 정해집니다.</p>
+          <label class="mt-3 block text-sm font-medium">참가자 (쉼표로 구분)</label>
+          <input id="ladderParticipants" type="text" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-emerald-500" placeholder="민수, 지연, 하준" />
+          <label class="mt-3 block text-sm font-medium" for="ladderWinCount">맨 아래 <strong class="text-amber-700">당첨</strong> 칸 개수 (나머지는 생존)</label>
+          <div class="mt-1 flex flex-wrap items-center gap-3">
+            <input type="number" id="ladderWinCount" min="1" max="99" value="1" class="w-24 rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-semibold outline-none focus:border-emerald-500" />
+            <span id="ladderWinCountHint" class="text-xs text-slate-500">참가자 2명 이상일 때 1~(인원−1)까지 설정할 수 있어요.</span>
+          </div>
+          <button type="button" id="runLadderBtn" class="mt-3 rounded-xl bg-emerald-600 px-6 py-2.5 font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50">사다리 그리기</button>
+          <div id="ladderBoard" class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p id="ladderPlaceholder" class="text-center text-sm text-slate-500">여기에 사다리가 표시됩니다.</p>
+          </div>
+          <p id="ladderResult" class="mt-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">참가자를 입력한 뒤 사다리를 그린 다음, 위쪽 이름을 클릭하세요.</p>
+        </section>
+        <section class="card p-5">
+          <h2 class="text-lg font-bold">동전 던지기</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">앞·뒤 중 하나가 무작위로 나옵니다.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-8">
+            <div id="coinVisual" class="coin-visual coin-heads" aria-hidden="true">앞</div>
+            <div class="min-w-0 flex-1">
+              <button type="button" id="flipCoinBtn" class="rounded-xl bg-amber-500 px-6 py-2.5 font-semibold text-white shadow hover:bg-amber-600 disabled:opacity-50">동전 던지기</button>
+              <p id="coinResult" class="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-100">위 동전을 던져 보세요.</p>
+            </div>
+          </div>
+        </section>
+        <section class="card p-5">
+          <h2 class="text-lg font-bold">팀 나누기</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">이름을 쉼표로 입력하고 팀 수를 정한 뒤 나눕니다.</p>
+          <label class="mt-3 block text-sm font-medium">참가자 (쉼표로 구분)</label>
+          <input id="teamParticipants" type="text" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-violet-500" placeholder="민수, 지연, 하준, 서연" />
+          <label class="mt-3 block text-sm font-medium" for="teamCount">팀 개수</label>
+          <input type="number" id="teamCount" min="2" max="8" value="2" class="mt-1 w-24 rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-semibold outline-none focus:border-violet-500" />
+          <button type="button" id="splitTeamsBtn" class="mt-3 rounded-xl bg-violet-600 px-6 py-2.5 font-semibold text-white shadow hover:bg-violet-700 disabled:opacity-50">팀 나누기</button>
+          <div id="teamResult" class="mt-4 space-y-2"></div>
+        </section>
+        <section class="card p-5">
+          <h2 class="text-lg font-bold">반응 속도</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">초록색이 되면 바로 클릭하세요. 너무 일찍 누르면 실패입니다.</p>
+          <button type="button" id="reactionBtn" class="reaction-btn reaction-idle mt-4">시작하기</button>
+          <p id="reactionHint" class="mt-3 text-sm text-slate-600 dark:text-slate-400">평균 반응 속도는 약 250ms 전후입니다.</p>
+          <p id="reactionResult" class="mt-2 hidden rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 dark:bg-slate-800 dark:text-slate-200"></p>
+        </section>
+    </div>
+
+    <div id="page-links" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-lg font-bold">바로가기</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">자주 쓰는 학교 사이트로 바로 이동할 수 있습니다.</p>
+          <div class="mt-3 space-y-2">
+            <a id="mealLink" href="https://school.jje.go.kr/jeju-s/ad/fm/foodmenu/selectFoodMenuView.do?mi=108110" target="_blank" rel="noopener noreferrer" class="block rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700">
+              학교 급식 메뉴 (제주과학고 식단)
+            </a>
+            <a id="edizirdiLink" href="https://jshs.kr/" target="_blank" rel="noopener noreferrer" class="block rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700">
+              이디저디 (JSHS)
+            </a>
+          </div>
+        </section>
+    </div>
+
+    <div id="page-files" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-xl font-bold">자료 공유 (PDF)</h2>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            이곳은 수업·동아리 등에 필요한 자료를 <strong>모두가 쉽게 볼 수 있도록</strong> 공유하는 곳입니다. 아래 목록에서 어떤 파일이 올라와 있는지 확인할 수 있습니다.
+          </p>
+          <ul id="pdfList" class="mt-3 list-disc pl-5 text-sm text-slate-700 dark:text-slate-300"></ul>
+          <div id="pdfUploadArea" class="mt-4 rounded-xl border border-dashed border-slate-300 p-4 dark:border-slate-600">
+            <input type="file" id="pdfInput" accept="application/pdf" multiple class="rounded-xl border border-slate-300 px-3 py-2" />
+            <button id="savePdfBtn" class="ml-2 rounded-xl bg-slate-800 px-4 py-2 font-semibold text-white hover:bg-slate-900">PDF 목록 저장</button>
+            <p class="mt-2 text-xs text-slate-500">실제 파일 본문은 브라우저 제한상 저장하지 않고, 파일명 리스트를 저장합니다.</p>
+          </div>
+          <p id="pdfUploadNotice" class="mt-2 hidden text-sm text-slate-500 dark:text-slate-400">PDF 목록 등록은 현재 관리자만 할 수 있습니다.</p>
+        </section>
+    </div>
+
+    <div id="page-admin" class="app-page hidden space-y-6">
+        <section class="card p-5">
+          <h2 class="text-xl font-bold text-rose-700">관리자 안내</h2>
+          <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            <li><strong>일반 이용자</strong>: 본인이 쓴 글·댓글만 수정·삭제할 수 있습니다. <strong>달력</strong> 탭의 일정은 누구나 삭제할 수 있습니다. 게시판 글은 등록 후 일정 기간이 지나면 자동 삭제됩니다.</li>
+            <li><strong>관리자</strong>: 실명 저장 시 「관리자인가요?」를 켜고 올바른 비밀번호를 입력하거나, 이미 등록된 부관리자 실명으로 로그인하면 됩니다. 다른 사람 글·댓글도 관리할 수 있습니다.</li>
+            <li>관리자는 이 페이지에서 <strong>관리자 비밀번호</strong> 변경, <strong>부관리자 실명</strong> 추가·제거, <strong>PDF 업로드 허용 여부</strong>, <strong>피드백·오류 알림</strong>, 신고·경고·전체 글 정리를 할 수 있습니다.</li>
+            <li>일반 게시판에서 관리자는 글마다 <strong>공지 고정</strong> / <strong>고정 해제</strong>로 상단에 공지를 띄울 수 있습니다.</li>
+            <li>이용자는 오른쪽 아래 <strong>피드백</strong> 버튼으로 의견·오류를 보낼 수 있고, 앱 오류는 자동으로 관리자에게 기록될 수 있습니다.</li>
+          </ul>
+        </section>
+
+        <section id="adminPasswordSection" class="card hidden p-5">
+          <h2 class="text-xl font-bold">관리자 비밀번호 변경</h2>
+          <p class="mt-1 text-sm text-slate-600">「관리자인가요?」로 로그인할 때 쓰는 비밀번호입니다. 변경 내용은 이 기기의 저장소에 저장됩니다.</p>
+          <form id="adminPasswordForm" class="mt-4 grid max-w-md grid-cols-1 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-slate-700" for="adminCurrentPassword">현재 비밀번호</label>
+              <input id="adminCurrentPassword" type="password" maxlength="64" autocomplete="off" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700" for="adminNewPassword">새 비밀번호</label>
+              <input id="adminNewPassword" type="password" maxlength="64" autocomplete="new-password" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700" for="adminNewPasswordConfirm">새 비밀번호 확인</label>
+              <input id="adminNewPasswordConfirm" type="password" maxlength="64" autocomplete="new-password" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" />
+            </div>
+            <button type="submit" class="justify-self-start rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">비밀번호 변경</button>
+          </form>
+        </section>
+
+        <section id="adminAccountsSection" class="card hidden p-5">
+          <h2 class="text-xl font-bold">부관리자 실명</h2>
+          <p class="mt-1 text-sm text-slate-600">여기 등록된 실명으로 로그인하면 <strong>비밀번호 없이</strong> 관리자로 시작합니다. (일반 로그인만 하면 됩니다.) 첫 관리자는 「관리자인가요?」+ 비밀번호로 로그인한 뒤, 다른 선생님 실명을 추가하세요.</p>
+          <ul id="adminNamesList" class="mt-3 space-y-2"></ul>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <input id="adminNameInput" type="text" maxlength="20" class="min-w-[10rem] flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="추가할 관리자 실명" />
+            <button type="button" id="addAdminBtn" class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">관리자 추가</button>
+          </div>
+        </section>
+
+        <section id="adminPdfSection" class="card hidden p-5">
+          <h2 class="text-xl font-bold">자료 공유 (PDF) 설정</h2>
+          <p class="mt-1 text-sm text-slate-600">기본적으로 PDF 목록 등록은 관리자만 할 수 있습니다. 아래를 켜면 일반 이용자도 업로드할 수 있습니다.</p>
+          <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-600 dark:bg-slate-800">
+            <input id="pdfUploadPublicCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            <span>
+              <strong class="text-slate-900 dark:text-slate-100">일반 이용자 PDF 업로드 허용</strong>
+              <span class="mt-1 block text-slate-600 dark:text-slate-400">켜면 관리자가 아닌 사람도 자료 공유 탭에서 PDF 목록을 등록할 수 있습니다.</span>
+            </span>
+          </label>
+        </section>
+
+        <section id="adminContentSection" class="card p-5">
+          <h2 class="text-xl font-bold">전체 게시글 관리</h2>
+          <p class="mt-1 text-sm text-slate-600">모든 일반·동아리 게시글과 댓글을 한곳에서 삭제할 수 있습니다.</p>
+          <div id="adminContentList" class="mt-4 max-h-[28rem] space-y-3 overflow-y-auto"></div>
+        </section>
+
+        <section id="adminWarningsSection" class="card p-5">
+          <h2 class="text-xl font-bold">이용자 경고</h2>
+          <p class="mt-1 text-sm text-slate-600">비속어 필터에 걸린 횟수입니다. 관리자가 경고를 해제할 수 있습니다.</p>
+          <div id="adminWarningsList" class="mt-4 space-y-2"></div>
+        </section>
+
+        <section id="adminAlertsSection" class="card p-5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-xl font-bold text-violet-800">피드백 · 오류 알림</h2>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="markAllAlertsReadBtn" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">전체 확인</button>
+              <button type="button" id="clearReadAlertsBtn" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">확인한 항목 삭제</button>
+            </div>
+          </div>
+          <p class="mt-1 text-sm text-slate-600">이용자 피드백과 자동 수집된 오류가 여기에 쌓입니다.</p>
+          <div id="adminAlertsList" class="mt-4 max-h-[24rem] space-y-3 overflow-y-auto"></div>
+        </section>
+
+        <section id="adminReportSection" class="card p-5">
+          <h2 class="text-xl font-bold text-rose-700">신고 관리</h2>
+          <p class="mt-1 text-sm text-slate-600">신고된 게시글/댓글만 표시됩니다.</p>
+          <div id="adminReportList" class="mt-4 space-y-3"></div>
+        </section>
+    </div>
+  </div>
+
+  <script>
+    const APP_KEY = "jgwCommunityData_v1";
+    const DARK_MODE_KEY = "jgwDarkMode";
+    /** 일반·동아리 게시글 자동 삭제 (등록일 기준, 일) */
+    const POST_RETENTION_DAYS = 14;
+    /** 공지 고정 글 자동 삭제 (등록일 기준, 일) */
+    const PINNED_POST_RETENTION_DAYS = 30;
+    /** 최초 설치·데이터 없을 때만 쓰는 기본 관리자 비밀번호 */
+    const DEFAULT_ADMIN_PASSWORD = "제곽관리자비번";
+
+    function getAdminLoginPassword() {
+      const stored = String(state?.data?.adminPassword ?? "").trim();
+      return stored || DEFAULT_ADMIN_PASSWORD;
+    }
+
+    function verifyAdminLoginPassword(input) {
+      return String(input || "").trim() === getAdminLoginPassword();
+    }
+
+    function normalizeAdminNames(value) {
+      if (!Array.isArray(value)) return [];
+      const out = [];
+      const seen = new Set();
+      value.forEach(entry => {
+        const s = String(entry || "").trim();
+        if (!s || seen.has(s)) return;
+        seen.add(s);
+        out.push(s);
+      });
+      return out;
+    }
+    const BAD_WORDS = [
+      "시발", "씨발", "병신", "지랄", "개새끼", "좆", "ㅅㅂ", "ㅂㅅ", "느금", "꺼져", "멍청이"
+    ];
+
+    function nowISO() {
+      return new Date().toISOString();
+    }
+
+    function pruneExpiredBoardPosts() {
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const beforeText = state.data.textPosts.length;
+      const beforeClub = state.data.clubPosts.length;
+
+      state.data.textPosts = state.data.textPosts.filter(post => {
+        const created = new Date(post.createdAt).getTime();
+        if (Number.isNaN(created)) return true;
+        const days = post.pinned ? PINNED_POST_RETENTION_DAYS : POST_RETENTION_DAYS;
+        return now - created < days * dayMs;
+      });
+
+      state.data.clubPosts = state.data.clubPosts.filter(post => {
+        const created = new Date(post.createdAt).getTime();
+        if (Number.isNaN(created)) return true;
+        return now - created < POST_RETENTION_DAYS * dayMs;
+      });
+
+      const changed = beforeText !== state.data.textPosts.length || beforeClub !== state.data.clubPosts.length;
+      if (changed) saveData(state.data);
+      return changed;
+    }
+
+    function uid() {
+      return (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function defaultData() {
+      return {
+        realName: "",
+        textPosts: [],
+        clubPosts: [],
+        calendarEvents: [],
+        whiteboards: {
+          board1: { imageData: "", author: "", updatedAt: "" },
+          board2: { imageData: "", author: "", updatedAt: "" },
+          board3: { imageData: "", author: "", updatedAt: "" }
+        },
+        pdfFiles: [],
+        pdfUploadPublic: false,
+        warnedUsers: {},
+        adminNames: [],
+        adminSession: false,
+        adminPassword: DEFAULT_ADMIN_PASSWORD,
+        adminAlerts: []
+      };
+    }
+
+    function normalizeAdminAlert(item) {
+      return {
+        id: item?.id || uid(),
+        type: item?.type === "error" ? "error" : "feedback",
+        message: String(item?.message || "").trim().slice(0, 2000),
+        detail: String(item?.detail || "").trim().slice(0, 4000),
+        author: String(item?.author || "알수없음").trim() || "알수없음",
+        page: String(item?.page || "").trim(),
+        auto: Boolean(item?.auto),
+        read: Boolean(item?.read),
+        createdAt: item?.createdAt || nowISO()
+      };
+    }
+
+    function countUnreadAdminAlerts() {
+      return (state.data.adminAlerts || []).filter(a => !a.read).length;
+    }
+
+    let lastAutoErrorKey = "";
+    let lastAutoErrorAt = 0;
+    let adminAlertToastTimer = null;
+
+    function showAdminAlertToast(text) {
+      const el = document.getElementById("adminAlertToast");
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove("hidden");
+      clearTimeout(adminAlertToastTimer);
+      adminAlertToastTimer = setTimeout(() => el.classList.add("hidden"), 3500);
+    }
+
+    function updateAdminAlertIndicators() {
+      const unread = countUnreadAdminAlerts();
+      if (navAdmin) {
+        navAdmin.textContent = unread > 0 ? `관리자 (${unread})` : "관리자";
+      }
+      if (adminAlertBanner && adminAlertBannerCount) {
+        const showBanner = isAdminMode() && unread > 0;
+        adminAlertBanner.classList.toggle("hidden", !showBanner);
+        adminAlertBannerCount.textContent = String(unread);
+      }
+    }
+
+    function pushAdminAlert({ type, message, detail = "", author = "", page = "", auto = false }) {
+      const cleaned = String(message || "").trim();
+      if (!cleaned || !state?.data) return;
+      const item = normalizeAdminAlert({
+        type,
+        message: cleaned,
+        detail,
+        author: author || state.data.realName || "알수없음",
+        page: page || currentPage || "",
+        auto,
+        read: false,
+        createdAt: nowISO()
+      });
+      state.data.adminAlerts = state.data.adminAlerts || [];
+      state.data.adminAlerts.unshift(item);
+      if (state.data.adminAlerts.length > 100) {
+        state.data.adminAlerts = state.data.adminAlerts.slice(0, 100);
+      }
+      saveData(state.data);
+      updateAdminAlertIndicators();
+      renderAdminAlerts();
+      if (isAdminMode()) {
+        showAdminAlertToast(auto ? "자동 오류 알림이 도착했습니다." : "새 피드백·오류 알림이 도착했습니다.");
+      }
+    }
+
+    function reportAutoError(message, detail) {
+      const key = String(message || "").slice(0, 200);
+      const now = Date.now();
+      if (key === lastAutoErrorKey && now - lastAutoErrorAt < 30000) return;
+      lastAutoErrorKey = key;
+      lastAutoErrorAt = now;
+      pushAdminAlert({
+        type: "error",
+        message: key,
+        detail: String(detail || "").slice(0, 4000),
+        auto: true
+      });
+    }
+
+    function normalizeComment(comment) {
+      return {
+        id: comment?.id || uid(),
+        author: comment?.author || "알수없음",
+        content: comment?.content || "",
+        createdAt: comment?.createdAt || nowISO(),
+        isReported: Boolean(comment?.isReported),
+        reportCount: Number(comment?.reportCount || 0)
+      };
+    }
+
+    function normalizeTextPost(post) {
+      return {
+        id: post?.id || uid(),
+        title: post?.title || "",
+        content: post?.content || "",
+        author: post?.author || "알수없음",
+        createdAt: post?.createdAt || nowISO(),
+        comments: (post?.comments || []).map(normalizeComment),
+        isReported: Boolean(post?.isReported),
+        reportCount: Number(post?.reportCount || 0),
+        pinned: Boolean(post?.pinned),
+        pinnedAt: post?.pinnedAt || ""
+      };
+    }
+
+    function sortTextPosts(posts) {
+      return [...posts].sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+        if (a.pinned && b.pinned) {
+          return new Date(b.pinnedAt || b.createdAt) - new Date(a.pinnedAt || a.createdAt);
+        }
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    }
+
+    function toggleTextPostPin(postId) {
+      if (!isAdminMode()) return;
+      const target = state.data.textPosts.find(post => post.id === postId);
+      if (!target) return;
+      target.pinned = !target.pinned;
+      target.pinnedAt = target.pinned ? nowISO() : "";
+      saveData(state.data);
+      renderAll();
+    }
+
+    function normalizeClubPost(post) {
+      return {
+        id: post?.id || uid(),
+        title: post?.title || "",
+        content: post?.content || "",
+        imageData: post?.imageData || "",
+        author: post?.author || "알수없음",
+        createdAt: post?.createdAt || nowISO(),
+        isReported: Boolean(post?.isReported),
+        reportCount: Number(post?.reportCount || 0)
+      };
+    }
+
+    const BOARD_IDS = ["board1", "board2", "board3"];
+    const BOARD_LAYOUT = {
+      board1: { label: "메인 그림판", width: 800, height: 420 },
+      board2: { label: "작은 그림판 1", width: 380, height: 220 },
+      board3: { label: "작은 그림판 2", width: 380, height: 220 }
+    };
+
+    function normalizeWhiteboardSnapshot(value) {
+      if (!value) return { imageData: "", author: "", updatedAt: "" };
+      if (typeof value === "string") {
+        return value
+          ? { imageData: value, author: "", updatedAt: "" }
+          : { imageData: "", author: "", updatedAt: "" };
+      }
+      return {
+        imageData: value.imageData || "",
+        author: value.author || "",
+        updatedAt: value.updatedAt || ""
+      };
+    }
+
+    function normalizeWhiteboards(whiteboards) {
+      const result = {};
+      BOARD_IDS.forEach(boardId => {
+        result[boardId] = normalizeWhiteboardSnapshot(whiteboards?.[boardId]);
+      });
+      return result;
+    }
+
+    function normalizeData(data) {
+      const adminNames = normalizeAdminNames(data?.adminNames);
+      const realName = String(data?.realName || "").trim();
+      let adminSession = Boolean(data?.adminSession);
+      if (!adminSession && realName && adminNames.includes(realName)) {
+        adminSession = true;
+      }
+      return {
+        ...defaultData(),
+        ...data,
+        textPosts: (data?.textPosts || []).map(normalizeTextPost),
+        clubPosts: (data?.clubPosts || []).map(normalizeClubPost),
+        whiteboards: normalizeWhiteboards(data?.whiteboards),
+        warnedUsers: data?.warnedUsers && typeof data.warnedUsers === "object" ? data.warnedUsers : {},
+        adminNames,
+        adminSession,
+        adminPassword: (() => {
+          const p = String(data?.adminPassword ?? "").trim();
+          return p || DEFAULT_ADMIN_PASSWORD;
+        })(),
+        adminAlerts: (data?.adminAlerts || []).map(normalizeAdminAlert),
+        pdfUploadPublic: Boolean(data?.pdfUploadPublic)
+      };
+    }
+
+    function loadData() {
+      try {
+        const raw = localStorage.getItem(APP_KEY);
+        if (!raw) return defaultData();
+        const parsed = JSON.parse(raw);
+        return normalizeData(parsed);
+      } catch (error) {
+        console.error("localStorage parse 실패:", error);
+        const fallback = defaultData();
+        try {
+          fallback.adminAlerts = [
+            normalizeAdminAlert({
+              type: "error",
+              message: "저장 데이터를 읽지 못했습니다.",
+              detail: String(error?.message || error),
+              auto: true,
+              read: false
+            })
+          ];
+        } catch (e) {
+          /* ignore */
+        }
+        return fallback;
+      }
+    }
+
+    function saveData(data) {
+      localStorage.setItem(APP_KEY, JSON.stringify(data));
+    }
+
+    function containsBadWords(text) {
+      const normalized = (text || "").toLowerCase();
+      return BAD_WORDS.find(word => normalized.includes(word.toLowerCase()));
+    }
+
+    function assertCleanText(text) {
+      const hit = containsBadWords(text);
+      if (hit) {
+        const userName = state?.data?.realName || "";
+        if (userName) {
+          const currentCount = Number(state.data.warnedUsers[userName] || 0);
+          state.data.warnedUsers[userName] = currentCount + 1;
+          saveData(state.data);
+          renderUserWarning();
+        }
+        alert(`비속어/비하 표현("${hit}")이 포함되어 저장할 수 없습니다.`);
+        return false;
+      }
+      return true;
+    }
+
+    const state = {
+      data: loadData(),
+      drawing: {}
+    };
+    const lastWhiteboardSync = { board1: "", board2: "", board3: "" };
+    let whiteboardToastTimer = null;
+
+    const nameModal = document.getElementById("nameModal");
+    const realNameInput = document.getElementById("realNameInput");
+    const loginAsAdminCheck = document.getElementById("loginAsAdminCheck");
+    const adminPasswordInput = document.getElementById("adminPasswordInput");
+    const adminPasswordRow = document.getElementById("adminPasswordRow");
+    const saveNameBtn = document.getElementById("saveNameBtn");
+    const changeNameBtn = document.getElementById("changeNameBtn");
+    const darkModeToggle = document.getElementById("darkModeToggle");
+    const currentUserName = document.getElementById("currentUserName");
+    const adminBadge = document.getElementById("adminBadge");
+    const userWarningBanner = document.getElementById("userWarningBanner");
+    const adminAlertBanner = document.getElementById("adminAlertBanner");
+    const adminAlertBannerCount = document.getElementById("adminAlertBannerCount");
+    const goAdminAlertsBtn = document.getElementById("goAdminAlertsBtn");
+    const feedbackModal = document.getElementById("feedbackModal");
+    const feedbackForm = document.getElementById("feedbackForm");
+    const feedbackType = document.getElementById("feedbackType");
+    const feedbackMessage = document.getElementById("feedbackMessage");
+    const feedbackCancelBtn = document.getElementById("feedbackCancelBtn");
+    const feedbackFab = document.getElementById("feedbackFab");
+
+    const textPostForm = document.getElementById("textPostForm");
+    const textPostTitle = document.getElementById("textPostTitle");
+    const textPostContent = document.getElementById("textPostContent");
+    const textPostList = document.getElementById("textPostList");
+
+    const clubPostForm = document.getElementById("clubPostForm");
+    const clubPostTitle = document.getElementById("clubPostTitle");
+    const clubPostContent = document.getElementById("clubPostContent");
+    const clubPostImage = document.getElementById("clubPostImage");
+    const clubPostList = document.getElementById("clubPostList");
+
+    const calendarForm = document.getElementById("calendarForm");
+    const calendarDate = document.getElementById("calendarDate");
+    const calendarText = document.getElementById("calendarText");
+    const calendarGrid = document.getElementById("calendarGrid");
+    const calendarDayEvents = document.getElementById("calendarDayEvents");
+    const calendarMonthLabel = document.getElementById("calendarMonthLabel");
+    const calendarSelectedLabel = document.getElementById("calendarSelectedLabel");
+    const calendarPrev = document.getElementById("calendarPrev");
+    const calendarNext = document.getElementById("calendarNext");
+    const calendarToday = document.getElementById("calendarToday");
+
+    const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+    let calendarViewYear = new Date().getFullYear();
+    let calendarViewMonth = new Date().getMonth();
+    let calendarSelectedDate = "";
+
+    const whiteboardWrap = document.getElementById("whiteboardWrap");
+    const whiteboardToast = document.getElementById("whiteboardToast");
+    const rollDiceBtn = document.getElementById("rollDiceBtn");
+    const diceVisual = document.getElementById("diceVisual");
+    const diceResult = document.getElementById("diceResult");
+    const ladderParticipants = document.getElementById("ladderParticipants");
+    const ladderWinCount = document.getElementById("ladderWinCount");
+    const ladderWinCountHint = document.getElementById("ladderWinCountHint");
+    const runLadderBtn = document.getElementById("runLadderBtn");
+    const ladderBoard = document.getElementById("ladderBoard");
+    const ladderResult = document.getElementById("ladderResult");
+    const flipCoinBtn = document.getElementById("flipCoinBtn");
+    const coinVisual = document.getElementById("coinVisual");
+    const coinResult = document.getElementById("coinResult");
+    const teamParticipants = document.getElementById("teamParticipants");
+    const teamCount = document.getElementById("teamCount");
+    const splitTeamsBtn = document.getElementById("splitTeamsBtn");
+    const teamResult = document.getElementById("teamResult");
+    const reactionBtn = document.getElementById("reactionBtn");
+    const reactionHint = document.getElementById("reactionHint");
+    const reactionResult = document.getElementById("reactionResult");
+
+    updateLadderWinCountUI();
+
+    const pdfInput = document.getElementById("pdfInput");
+    const savePdfBtn = document.getElementById("savePdfBtn");
+    const pdfList = document.getElementById("pdfList");
+    const pdfUploadArea = document.getElementById("pdfUploadArea");
+    const pdfUploadNotice = document.getElementById("pdfUploadNotice");
+    const adminPdfSection = document.getElementById("adminPdfSection");
+    const pdfUploadPublicCheck = document.getElementById("pdfUploadPublicCheck");
+    const adminReportSection = document.getElementById("adminReportSection");
+    const adminReportList = document.getElementById("adminReportList");
+    const adminPasswordSection = document.getElementById("adminPasswordSection");
+    const adminPasswordForm = document.getElementById("adminPasswordForm");
+    const adminCurrentPassword = document.getElementById("adminCurrentPassword");
+    const adminNewPassword = document.getElementById("adminNewPassword");
+    const adminNewPasswordConfirm = document.getElementById("adminNewPasswordConfirm");
+    const adminAccountsSection = document.getElementById("adminAccountsSection");
+    const adminNamesList = document.getElementById("adminNamesList");
+    const adminNameInput = document.getElementById("adminNameInput");
+    const addAdminBtn = document.getElementById("addAdminBtn");
+    const adminContentList = document.getElementById("adminContentList");
+    const adminWarningsList = document.getElementById("adminWarningsList");
+    const adminAlertsList = document.getElementById("adminAlertsList");
+    const markAllAlertsReadBtn = document.getElementById("markAllAlertsReadBtn");
+    const clearReadAlertsBtn = document.getElementById("clearReadAlertsBtn");
+    const navAdmin = document.getElementById("navAdmin");
+    const PAGE_IDS = ["home", "calendar", "club", "whiteboard", "tools", "links", "files", "admin"];
+    let currentPage = "home";
+
+    function syncAdminLoginUi() {
+      if (adminPasswordRow && loginAsAdminCheck) {
+        adminPasswordRow.classList.toggle("hidden", !loginAsAdminCheck.checked);
+      }
+    }
+
+    function resetAdminLoginForm() {
+      if (loginAsAdminCheck) loginAsAdminCheck.checked = false;
+      if (adminPasswordInput) adminPasswordInput.value = "";
+      syncAdminLoginUi();
+    }
+
+    function isListedAdminName(name) {
+      return normalizeAdminNames(state.data.adminNames).includes(String(name || "").trim());
+    }
+
+    function isAdminMode() {
+      return Boolean(state.data.adminSession) && !!(state.data.realName || "").trim();
+    }
+
+    function canEditAuthor(author) {
+      return isAdminMode() || (state.data.realName && state.data.realName === author);
+    }
+
+    function canDeleteAuthor(author) {
+      return isAdminMode() || (!!state.data.realName && state.data.realName === author);
+    }
+
+    function confirmAdminActionOnOther(author, message) {
+      if (!isAdminMode()) return true;
+      const me = (state.data.realName || "").trim();
+      if ((author || "").trim() === me) return true;
+      return confirm(message);
+    }
+
+    function renderUserWarning() {
+      const currentName = state.data.realName;
+      if (!currentName) {
+        userWarningBanner.classList.add("hidden");
+        return;
+      }
+      const warningCount = Number(state.data.warnedUsers[currentName] || 0);
+      if (!warningCount) {
+        userWarningBanner.classList.add("hidden");
+        return;
+      }
+      userWarningBanner.classList.remove("hidden");
+      userWarningBanner.textContent = `경고: 비속어 필터 차단 이력이 ${warningCount}회 있습니다.`;
+    }
+
+    function requireRealName() {
+      if (!state.data.realName) {
+        nameModal.classList.remove("hidden");
+        nameModal.classList.add("flex");
+        syncAdminLoginUi();
+      } else {
+        nameModal.classList.add("hidden");
+        nameModal.classList.remove("flex");
+      }
+      currentUserName.textContent = state.data.realName || "미등록";
+      adminBadge.classList.toggle("hidden", !isAdminMode());
+      renderUserWarning();
+      navAdmin.classList.toggle("hidden", !isAdminMode());
+      updateAdminAlertIndicators();
+      if (currentPage === "admin" && !isAdminMode()) switchPage("home");
+    }
+
+    function openFeedbackModal() {
+      if (!state.data.realName) return alert("실명 등록 후 피드백을 보낼 수 있습니다.");
+      if (feedbackMessage) feedbackMessage.value = "";
+      if (feedbackType) feedbackType.value = "feedback";
+      feedbackModal?.classList.remove("hidden");
+      feedbackModal?.classList.add("flex");
+      feedbackMessage?.focus();
+    }
+
+    function closeFeedbackModal() {
+      feedbackModal?.classList.add("hidden");
+      feedbackModal?.classList.remove("flex");
+    }
+
+    function switchPage(pageId) {
+      if (!PAGE_IDS.includes(pageId)) return;
+      if (pageId === "admin" && !isAdminMode()) return;
+
+      currentPage = pageId;
+      document.querySelectorAll(".app-page").forEach(page => {
+        page.classList.toggle("hidden", page.id !== `page-${pageId}`);
+      });
+      document.querySelectorAll("#appNav [data-page]").forEach(button => {
+        const active = button.getAttribute("data-page") === pageId;
+        button.classList.toggle("nav-tab-active", active);
+      });
+
+      try {
+        localStorage.setItem("jgwCurrentPage", pageId);
+      } catch (error) {
+        console.warn("페이지 저장 실패:", error);
+      }
+      if (pageId === "calendar") renderCalendar();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function setRealName(value) {
+      const cleaned = (value || "").trim();
+      if (cleaned.length < 2) {
+        alert("실명은 2자 이상 입력해주세요.");
+        return;
+      }
+      if (!assertCleanText(cleaned)) return;
+
+      const wantPasswordAdmin = Boolean(loginAsAdminCheck?.checked);
+      const pwd = (adminPasswordInput?.value || "").trim();
+
+      if (wantPasswordAdmin) {
+        if (!verifyAdminLoginPassword(pwd)) {
+          alert("관리자 비밀번호가 올바르지 않습니다.");
+          return;
+        }
+        state.data.adminSession = true;
+      } else if (isListedAdminName(cleaned)) {
+        state.data.adminSession = true;
+      } else {
+        state.data.adminSession = false;
+      }
+
+      state.data.realName = cleaned;
+      saveData(state.data);
+      resetAdminLoginForm();
+      requireRealName();
+    }
+
+    function formatDateTime(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "-";
+      return d.toLocaleString("ko-KR", { hour12: false });
+    }
+
+    function escapeHtml(value) {
+      return (value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function applyDarkMode(enabled) {
+      document.documentElement.classList.toggle("dark", enabled);
+      if (darkModeToggle) {
+        darkModeToggle.textContent = enabled ? "☀️" : "🌙";
+        darkModeToggle.title = enabled ? "라이트 모드로 전환" : "다크 모드로 전환";
+      }
+    }
+
+    function loadDarkModePreference() {
+      try {
+        applyDarkMode(localStorage.getItem(DARK_MODE_KEY) === "1");
+      } catch (error) {
+        applyDarkMode(false);
+      }
+    }
+
+    function toggleDarkMode() {
+      const next = !document.documentElement.classList.contains("dark");
+      try {
+        localStorage.setItem(DARK_MODE_KEY, next ? "1" : "0");
+      } catch (error) {
+        console.warn("다크 모드 설정 저장 실패:", error);
+      }
+      applyDarkMode(next);
+    }
+
+    function renderTextPosts() {
+      if (!state.data.textPosts.length) {
+        textPostList.innerHTML = `<p class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">아직 작성된 글이 없습니다.</p>`;
+        return;
+      }
+
+      const sorted = sortTextPosts(state.data.textPosts);
+      textPostList.innerHTML = sorted.map(post => `
+        <article class="rounded-2xl border border-slate-200 p-4 ${post.pinned ? "pinned-post" : ""} ${post.isReported ? "reported-item" : ""}">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="font-bold text-lg">${escapeHtml(post.title)}${post.pinned ? `<span class="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800 dark:bg-amber-900 dark:text-amber-100">공지</span>` : ""} ${post.isReported ? `<span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-700 dark:bg-rose-950 dark:text-rose-200">신고됨 (${post.reportCount || 0})</span>` : ""}</h3>
+            <span class="text-xs text-slate-500">${escapeHtml(post.author)} | ${formatDateTime(post.createdAt)}</span>
+          </div>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-slate-700">${escapeHtml(post.content)}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            ${isAdminMode() ? `<button type="button" data-text-pin="${post.id}" class="rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">${post.pinned ? "고정 해제" : "공지 고정"}</button>` : ""}
+            ${canEditAuthor(post.author) ? `<button data-text-edit="${post.id}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100">수정</button>` : ""}
+            ${canDeleteAuthor(post.author) ? `<button data-text-delete="${post.id}" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>` : ""}
+            <button data-text-report="${post.id}" class="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50">신고</button>
+          </div>
+
+          <div class="mt-3 flex gap-2">
+            <input data-comment-input="${post.id}" type="text" maxlength="200" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="댓글 작성 (실명 자동 입력)" />
+            <button data-comment-btn="${post.id}" class="rounded-xl bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-900">등록</button>
+          </div>
+
+          <div class="mt-3 space-y-2">
+            ${(post.comments || []).length ? (post.comments || []).map(comment => `
+              <div class="rounded-xl bg-slate-50 px-3 py-2 text-sm ${comment.isReported ? "border border-rose-200 bg-rose-50" : ""}">
+                <span class="font-semibold">${escapeHtml(comment.author)}</span>
+                <span class="text-slate-500 text-xs">(${formatDateTime(comment.createdAt)})</span>
+                ${comment.isReported ? `<span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-700">신고됨 (${comment.reportCount || 0})</span>` : ""}
+                <p class="mt-1 whitespace-pre-wrap">${escapeHtml(comment.content)}</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  ${canEditAuthor(comment.author) ? `<button data-comment-edit="${post.id}:${comment.id}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100">수정</button>` : ""}
+                  ${canDeleteAuthor(comment.author) ? `<button data-comment-delete="${post.id}:${comment.id}" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>` : ""}
+                  <button data-comment-report="${post.id}:${comment.id}" class="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50">신고</button>
+                </div>
+              </div>
+            `).join("") : `<p class="text-xs text-slate-500">댓글이 없습니다.</p>`}
+          </div>
+        </article>
+      `).join("");
+
+      textPostList.querySelectorAll("[data-text-edit]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-text-edit");
+          const target = state.data.textPosts.find(post => post.id === postId);
+          if (!target || !canEditAuthor(target.author)) return;
+          if (!confirmAdminActionOnOther(target.author, `「${target.title}」\n작성자: ${target.author}\n관리자 권한으로 수정할까요?`)) return;
+          const nextTitle = prompt("수정할 제목", target.title);
+          if (nextTitle === null) return;
+          const nextContent = prompt("수정할 내용", target.content);
+          if (nextContent === null) return;
+          const cleanedTitle = nextTitle.trim();
+          const cleanedContent = nextContent.trim();
+          if (!cleanedTitle || !cleanedContent) return alert("제목과 내용을 입력해주세요.");
+          if (!assertCleanText(`${cleanedTitle} ${cleanedContent}`)) return;
+          target.title = cleanedTitle;
+          target.content = cleanedContent;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+
+      textPostList.querySelectorAll("[data-text-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-text-delete");
+          const target = state.data.textPosts.find(post => post.id === postId);
+          if (!target || !canDeleteAuthor(target.author)) return;
+          if (!confirmAdminActionOnOther(target.author, `「${target.title}」\n작성자: ${target.author}\n관리자 권한으로 삭제할까요?`)) return;
+          const byAdmin = isAdminMode();
+          state.data.textPosts = state.data.textPosts.filter(post => post.id !== postId);
+          saveData(state.data);
+          renderAll();
+          if (byAdmin) alert("관리자 권한으로 삭제되었습니다.");
+        });
+      });
+
+      textPostList.querySelectorAll("[data-text-report]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-text-report");
+          const target = state.data.textPosts.find(post => post.id === postId);
+          if (!target) return;
+          target.isReported = true;
+          target.reportCount = Number(target.reportCount || 0) + 1;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+
+      textPostList.querySelectorAll("[data-text-pin]").forEach(button => {
+        button.addEventListener("click", () => {
+          toggleTextPostPin(button.getAttribute("data-text-pin"));
+        });
+      });
+
+      textPostList.querySelectorAll("[data-comment-btn]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-comment-btn");
+          const input = textPostList.querySelector(`[data-comment-input="${postId}"]`);
+          const content = (input?.value || "").trim();
+          if (!content) return;
+          if (!assertCleanText(content)) return;
+          if (!state.data.realName) return alert("실명 등록 후 이용하세요.");
+
+          const target = state.data.textPosts.find(post => post.id === postId);
+          if (!target) return;
+          target.comments = target.comments || [];
+          target.comments.push({
+            id: uid(),
+            author: state.data.realName,
+            content,
+            createdAt: nowISO(),
+            isReported: false,
+            reportCount: 0
+          });
+          saveData(state.data);
+          renderTextPosts();
+          input.value = "";
+        });
+      });
+
+      textPostList.querySelectorAll("[data-comment-edit]").forEach(button => {
+        button.addEventListener("click", () => {
+          const [postId, commentId] = String(button.getAttribute("data-comment-edit")).split(":");
+          const post = state.data.textPosts.find(item => item.id === postId);
+          const target = post?.comments?.find(comment => comment.id === commentId);
+          if (!post || !target || !canEditAuthor(target.author)) return;
+          if (!confirmAdminActionOnOther(target.author, `댓글\n작성자: ${target.author}\n관리자 권한으로 수정할까요?`)) return;
+          const next = prompt("수정할 댓글", target.content);
+          if (next === null) return;
+          const cleaned = next.trim();
+          if (!cleaned) return alert("댓글을 입력해주세요.");
+          if (!assertCleanText(cleaned)) return;
+          target.content = cleaned;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+
+      textPostList.querySelectorAll("[data-comment-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const [postId, commentId] = String(button.getAttribute("data-comment-delete")).split(":");
+          const post = state.data.textPosts.find(item => item.id === postId);
+          const target = post?.comments?.find(comment => comment.id === commentId);
+          if (!post || !target || !canDeleteAuthor(target.author)) return;
+          if (!confirmAdminActionOnOther(target.author, `댓글\n작성자: ${target.author}\n관리자 권한으로 삭제할까요?`)) return;
+          const byAdmin = isAdminMode();
+          post.comments = (post.comments || []).filter(comment => comment.id !== commentId);
+          saveData(state.data);
+          renderAll();
+          if (byAdmin) alert("관리자 권한으로 삭제되었습니다.");
+        });
+      });
+
+      textPostList.querySelectorAll("[data-comment-report]").forEach(button => {
+        button.addEventListener("click", () => {
+          const [postId, commentId] = String(button.getAttribute("data-comment-report")).split(":");
+          const post = state.data.textPosts.find(item => item.id === postId);
+          const target = post?.comments?.find(comment => comment.id === commentId);
+          if (!target) return;
+          target.isReported = true;
+          target.reportCount = Number(target.reportCount || 0) + 1;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+    }
+
+    function renderClubPosts() {
+      if (!state.data.clubPosts.length) {
+        clubPostList.innerHTML = `<p class="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">아직 등록된 동아리 자랑 글이 없습니다.</p>`;
+        return;
+      }
+
+      const sorted = [...state.data.clubPosts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      clubPostList.innerHTML = sorted.map(post => `
+        <article class="rounded-2xl border border-slate-200 overflow-hidden ${post.isReported ? "reported-item" : ""}">
+          ${post.imageData ? `<img src="${post.imageData}" alt="동아리 사진" class="h-52 w-full object-cover" />` : `<div class="h-52 w-full bg-slate-100 flex items-center justify-center text-sm text-slate-500">이미지 없음</div>`}
+          <div class="p-4">
+            <h3 class="font-bold">${escapeHtml(post.title)} ${post.isReported ? `<span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-xs text-rose-700">신고됨 (${post.reportCount || 0})</span>` : ""}</h3>
+            <p class="mt-2 text-sm whitespace-pre-wrap text-slate-700">${escapeHtml(post.content)}</p>
+            <p class="mt-3 text-xs text-slate-500">${escapeHtml(post.author)} | ${formatDateTime(post.createdAt)}</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              ${canEditAuthor(post.author) ? `<button data-club-edit="${post.id}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100">수정</button>` : ""}
+              ${canDeleteAuthor(post.author) ? `<button data-club-delete="${post.id}" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>` : ""}
+              <button data-club-report="${post.id}" class="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50">신고</button>
+            </div>
+          </div>
+        </article>
+      `).join("");
+
+      clubPostList.querySelectorAll("[data-club-edit]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-club-edit");
+          const target = state.data.clubPosts.find(post => post.id === postId);
+          if (!target || !canEditAuthor(target.author)) return;
+          if (!confirmAdminActionOnOther(target.author, `「${target.title}」\n작성자: ${target.author}\n관리자 권한으로 수정할까요?`)) return;
+          const nextTitle = prompt("수정할 제목", target.title);
+          if (nextTitle === null) return;
+          const nextContent = prompt("수정할 내용", target.content);
+          if (nextContent === null) return;
+          const cleanedTitle = nextTitle.trim();
+          const cleanedContent = nextContent.trim();
+          if (!cleanedTitle || !cleanedContent) return alert("제목과 내용을 입력해주세요.");
+          if (!assertCleanText(`${cleanedTitle} ${cleanedContent}`)) return;
+          target.title = cleanedTitle;
+          target.content = cleanedContent;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+
+      clubPostList.querySelectorAll("[data-club-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-club-delete");
+          const target = state.data.clubPosts.find(post => post.id === postId);
+          if (!target || !canDeleteAuthor(target.author)) return;
+          if (!confirmAdminActionOnOther(target.author, `「${target.title}」\n작성자: ${target.author}\n관리자 권한으로 삭제할까요?`)) return;
+          const byAdmin = isAdminMode();
+          state.data.clubPosts = state.data.clubPosts.filter(post => post.id !== postId);
+          saveData(state.data);
+          renderAll();
+          if (byAdmin) alert("관리자 권한으로 삭제되었습니다.");
+        });
+      });
+
+      clubPostList.querySelectorAll("[data-club-report]").forEach(button => {
+        button.addEventListener("click", () => {
+          const postId = button.getAttribute("data-club-report");
+          const target = state.data.clubPosts.find(post => post.id === postId);
+          if (!target) return;
+          target.isReported = true;
+          target.reportCount = Number(target.reportCount || 0) + 1;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+    }
+
+    function toDateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function parseDateKey(key) {
+      const [y, m, d] = key.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function formatSelectedDateLabel(key) {
+      const date = parseDateKey(key);
+      return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 (${WEEKDAY_LABELS[date.getDay()]})`;
+    }
+
+    function getEventsByDate() {
+      const map = {};
+      state.data.calendarEvents.forEach(event => {
+        if (!map[event.date]) map[event.date] = [];
+        map[event.date].push(event);
+      });
+      return map;
+    }
+
+    function setCalendarSelectedDate(dateKey) {
+      calendarSelectedDate = dateKey;
+      calendarDate.value = dateKey;
+      calendarSelectedLabel.textContent = formatSelectedDateLabel(dateKey);
+    }
+
+    function renderCalendarGrid() {
+      const todayKey = toDateKey(new Date());
+      const eventsByDate = getEventsByDate();
+      const firstDay = new Date(calendarViewYear, calendarViewMonth, 1);
+      const startWeekday = firstDay.getDay();
+      const daysInMonth = new Date(calendarViewYear, calendarViewMonth + 1, 0).getDate();
+      const daysInPrevMonth = new Date(calendarViewYear, calendarViewMonth, 0).getDate();
+
+      calendarMonthLabel.textContent = `${calendarViewYear}년 ${calendarViewMonth + 1}월`;
+
+      const cells = [];
+      for (let i = 0; i < 42; i += 1) {
+        let dayNumber;
+        let inCurrentMonth = true;
+        let cellYear = calendarViewYear;
+        let cellMonth = calendarViewMonth;
+
+        if (i < startWeekday) {
+          dayNumber = daysInPrevMonth - startWeekday + i + 1;
+          inCurrentMonth = false;
+          if (calendarViewMonth === 0) {
+            cellYear -= 1;
+            cellMonth = 11;
+          } else {
+            cellMonth -= 1;
+          }
+        } else if (i >= startWeekday + daysInMonth) {
+          dayNumber = i - startWeekday - daysInMonth + 1;
+          inCurrentMonth = false;
+          if (calendarViewMonth === 11) {
+            cellYear += 1;
+            cellMonth = 0;
+          } else {
+            cellMonth += 1;
+          }
+        } else {
+          dayNumber = i - startWeekday + 1;
+        }
+
+        const dateKey = toDateKey(new Date(cellYear, cellMonth, dayNumber));
+        const weekday = new Date(cellYear, cellMonth, dayNumber).getDay();
+        const events = eventsByDate[dateKey] || [];
+        const isToday = dateKey === todayKey;
+        const isSelected = dateKey === calendarSelectedDate;
+
+        let cellClass = "calendar-day relative flex flex-col items-start p-1.5 text-left sm:p-2 ";
+        if (!inCurrentMonth) cellClass += "text-slate-300 ";
+        else if (weekday === 0) cellClass += "text-rose-500 ";
+        else if (weekday === 6) cellClass += "text-blue-600 ";
+        else cellClass += "text-slate-800 ";
+
+        if (isSelected) cellClass += "bg-amber-500 text-white shadow-sm ";
+        else if (isToday) cellClass += "bg-blue-50 ring-1 ring-blue-200 ";
+        else cellClass += "hover:bg-slate-50 ";
+
+        const previewLimit = 2;
+        const eventPreviews = events.slice(0, previewLimit).map(event => `
+          <span class="block w-full truncate rounded px-1 py-0.5 text-left text-[9px] font-medium leading-tight sm:text-[10px] ${
+            isSelected ? "bg-white/25 text-white" : "bg-amber-100 text-amber-900"
+          }" title="${escapeHtml(event.text)}">${escapeHtml(event.text)}</span>
+        `).join("");
+
+        const moreCount = events.length > previewLimit
+          ? `<span class="block text-left text-[9px] font-semibold ${isSelected ? "text-white/90" : "text-amber-700"}">+${events.length - previewLimit}개</span>`
+          : "";
+
+        cells.push(`
+          <button type="button" data-calendar-day="${dateKey}" class="${cellClass}">
+            <span class="text-xs font-semibold sm:text-sm ${isSelected ? "text-white" : ""}">${dayNumber}</span>
+            ${events.length ? `<div class="mt-1 flex w-full flex-col gap-0.5 overflow-hidden">${eventPreviews}${moreCount}</div>` : ""}
+          </button>
+        `);
+      }
+
+      calendarGrid.innerHTML = cells.join("");
+
+      calendarGrid.querySelectorAll("[data-calendar-day]").forEach(button => {
+        button.addEventListener("click", () => {
+          const dateKey = button.getAttribute("data-calendar-day");
+          setCalendarSelectedDate(dateKey);
+          const picked = parseDateKey(dateKey);
+          calendarViewYear = picked.getFullYear();
+          calendarViewMonth = picked.getMonth();
+          renderCalendar();
+        });
+      });
+    }
+
+    function renderCalendarDayEvents() {
+      const events = state.data.calendarEvents
+        .filter(event => event.date === calendarSelectedDate)
+        .sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+
+      if (!events.length) {
+        calendarDayEvents.innerHTML = `<p class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">이 날짜에 등록된 일정이 없습니다.</p>`;
+        return;
+      }
+
+      calendarDayEvents.innerHTML = events.map(event => `
+        <div class="flex items-start justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+          <div>
+            <p class="text-sm font-semibold text-slate-800">${escapeHtml(event.text)}</p>
+            <p class="mt-1 text-xs text-slate-500">${escapeHtml(event.author)} · ${formatDateTime(event.updatedAt)}</p>
+          </div>
+          <button type="button" data-calendar-delete="${event.id}" class="shrink-0 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>
+        </div>
+      `).join("");
+
+      calendarDayEvents.querySelectorAll("[data-calendar-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const id = button.getAttribute("data-calendar-delete");
+          state.data.calendarEvents = state.data.calendarEvents.filter(event => event.id !== id);
+          saveData(state.data);
+          renderCalendar();
+        });
+      });
+    }
+
+    function flashCalendarDay(dateKey) {
+      const target = calendarGrid.querySelector(`[data-calendar-day="${dateKey}"]`);
+      if (!target) return;
+      target.classList.remove("calendar-day-flash");
+      void target.offsetWidth;
+      target.classList.add("calendar-day-flash");
+      setTimeout(() => target.classList.remove("calendar-day-flash"), 900);
+    }
+
+    function renderCalendar(options = {}) {
+      const { flashDate = "" } = options;
+      if (!calendarSelectedDate) {
+        setCalendarSelectedDate(toDateKey(new Date()));
+      }
+      renderCalendarGrid();
+      renderCalendarDayEvents();
+      if (flashDate) flashCalendarDay(flashDate);
+    }
+
+    function getBoardNumber(boardId) {
+      return BOARD_IDS.indexOf(boardId) + 1;
+    }
+
+    function showWhiteboardToast(author, boardNumber) {
+      if (!whiteboardToast) return;
+      whiteboardToast.textContent = `[${author}]님이 ${boardNumber}번 그림판을 업데이트했습니다!`;
+      whiteboardToast.classList.remove("hidden");
+      clearTimeout(whiteboardToastTimer);
+      whiteboardToastTimer = setTimeout(() => {
+        whiteboardToast.classList.add("hidden");
+      }, 3000);
+    }
+
+    function applySnapshotToCanvas(boardId, imageData) {
+      const canvas = document.getElementById(boardId);
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!imageData) return;
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = imageData;
+    }
+
+    function updateBoardMeta(boardId) {
+      const meta = whiteboardWrap.querySelector(`[data-board-meta="${boardId}"]`);
+      if (!meta) return;
+      const snap = state.data.whiteboards[boardId];
+      if (!snap?.imageData) {
+        meta.textContent = "공유된 그림 없음";
+        return;
+      }
+      const authorText = snap.author ? `${snap.author}님 공유` : "공유됨";
+      meta.textContent = `${authorText} · ${formatDateTime(snap.updatedAt)}`;
+    }
+
+    function syncWhiteboardsFromStorage(previousData, nextData, options = {}) {
+      const { notify = true } = options;
+      BOARD_IDS.forEach(boardId => {
+        const nextSnap = normalizeWhiteboardSnapshot(nextData.whiteboards[boardId]);
+        if (!nextSnap.updatedAt || nextSnap.updatedAt === lastWhiteboardSync[boardId]) return;
+
+        lastWhiteboardSync[boardId] = nextSnap.updatedAt;
+        applySnapshotToCanvas(boardId, nextSnap.imageData);
+        updateBoardMeta(boardId);
+
+        if (notify && nextSnap.author && nextSnap.author !== state.data.realName) {
+          showWhiteboardToast(nextSnap.author, getBoardNumber(boardId));
+        }
+      });
+    }
+
+    function loadSharedWhiteboards() {
+      BOARD_IDS.forEach(boardId => {
+        const snap = state.data.whiteboards[boardId];
+        lastWhiteboardSync[boardId] = snap.updatedAt || "";
+        applySnapshotToCanvas(boardId, snap.imageData);
+        updateBoardMeta(boardId);
+      });
+    }
+
+    function shareBoard(boardId) {
+      if (!state.data.realName) {
+        alert("실명 등록 후 공유할 수 있습니다.");
+        return;
+      }
+      const canvas = document.getElementById(boardId);
+      if (!canvas) return;
+
+      const updatedAt = nowISO();
+      state.data.whiteboards[boardId] = {
+        imageData: canvas.toDataURL("image/png"),
+        author: state.data.realName,
+        updatedAt
+      };
+      lastWhiteboardSync[boardId] = updatedAt;
+      saveData(state.data);
+      updateBoardMeta(boardId);
+      alert(`${getBoardNumber(boardId)}번 그림판이 공유되었습니다.`);
+    }
+
+    function applyBoardDrawTool(ctx, drawState) {
+      if (drawState.tool === "eraser") {
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.strokeStyle = "rgba(0,0,0,1)";
+        ctx.lineWidth = 18;
+      } else {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 2.2;
+      }
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+    }
+
+    function setBoardTool(boardId, tool) {
+      const drawState = state.drawing[boardId];
+      if (!drawState) return;
+      drawState.tool = tool;
+      const canvas = document.getElementById(boardId);
+      if (canvas) canvas.classList.toggle("eraser-mode", tool === "eraser");
+      whiteboardWrap.querySelectorAll(`[data-board-tool="${boardId}"]`).forEach(btn => {
+        const active = btn.getAttribute("data-tool") === tool;
+        btn.classList.toggle("board-tool-btn-active", active);
+      });
+    }
+
+    function createBoardSection(boardId) {
+      const spec = BOARD_LAYOUT[boardId];
+      const box = document.createElement("section");
+      box.className = "rounded-2xl border border-slate-200 p-3";
+      box.innerHTML = `
+        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 class="font-semibold">${spec.label}</h3>
+          <div class="flex flex-wrap items-center gap-1">
+            <button type="button" data-board-tool="${boardId}" data-tool="pen" class="board-tool-btn board-tool-btn-active">펜</button>
+            <button type="button" data-board-tool="${boardId}" data-tool="eraser" class="board-tool-btn">지우개</button>
+            <button type="button" data-board-clear="${boardId}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100">전체 지우기</button>
+          </div>
+        </div>
+        <canvas id="${boardId}" width="${spec.width}" height="${spec.height}" class="board-canvas w-full"></canvas>
+        <p data-board-meta="${boardId}" class="mt-2 text-xs text-slate-500">공유된 그림 없음</p>
+        <button type="button" data-board-share="${boardId}" class="mt-2 w-full rounded-xl bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700">이 그림판 공유하기</button>
+      `;
+      return box;
+    }
+
+    function createWhiteboards() {
+      whiteboardWrap.innerHTML = "";
+      const layoutRoot = document.createElement("div");
+      layoutRoot.className = "whiteboard-layout";
+      layoutRoot.appendChild(createBoardSection("board1"));
+      const subGrid = document.createElement("div");
+      subGrid.className = "whiteboard-sub-grid";
+      subGrid.appendChild(createBoardSection("board2"));
+      subGrid.appendChild(createBoardSection("board3"));
+      layoutRoot.appendChild(subGrid);
+      whiteboardWrap.appendChild(layoutRoot);
+
+      BOARD_IDS.forEach(boardId => {
+        const canvas = document.getElementById(boardId);
+        const ctx = canvas.getContext("2d");
+        const drawState = { isDrawing: false, tool: "pen" };
+        state.drawing[boardId] = drawState;
+        applyBoardDrawTool(ctx, drawState);
+
+        function getPos(evt) {
+          const rect = canvas.getBoundingClientRect();
+          const touch = evt.touches ? evt.touches[0] : null;
+          const clientX = touch ? touch.clientX : evt.clientX;
+          const clientY = touch ? touch.clientY : evt.clientY;
+          return {
+            x: ((clientX - rect.left) * canvas.width) / rect.width,
+            y: ((clientY - rect.top) * canvas.height) / rect.height
+          };
+        }
+
+        function start(evt) {
+          drawState.isDrawing = true;
+          applyBoardDrawTool(ctx, drawState);
+          const p = getPos(evt);
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+        }
+
+        function move(evt) {
+          if (!drawState.isDrawing) return;
+          evt.preventDefault();
+          const p = getPos(evt);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        }
+
+        function end() {
+          if (!drawState.isDrawing) return;
+          drawState.isDrawing = false;
+        }
+
+        canvas.addEventListener("mousedown", start);
+        canvas.addEventListener("mousemove", move);
+        canvas.addEventListener("mouseup", end);
+        canvas.addEventListener("mouseleave", end);
+        canvas.addEventListener("touchstart", start, { passive: true });
+        canvas.addEventListener("touchmove", move, { passive: false });
+        canvas.addEventListener("touchend", end);
+      });
+
+      whiteboardWrap.querySelectorAll("[data-board-tool]").forEach(button => {
+        button.addEventListener("click", () => {
+          const boardId = button.getAttribute("data-board-tool");
+          const tool = button.getAttribute("data-tool");
+          if (boardId && (tool === "pen" || tool === "eraser")) setBoardTool(boardId, tool);
+        });
+      });
+
+      whiteboardWrap.querySelectorAll("[data-board-clear]").forEach(button => {
+        button.addEventListener("click", () => {
+          const boardId = button.getAttribute("data-board-clear");
+          const canvas = document.getElementById(boardId);
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const drawState = state.drawing[boardId];
+          if (drawState) applyBoardDrawTool(ctx, drawState);
+        });
+      });
+
+      whiteboardWrap.querySelectorAll("[data-board-share]").forEach(button => {
+        button.addEventListener("click", () => {
+          shareBoard(button.getAttribute("data-board-share"));
+        });
+      });
+
+      loadSharedWhiteboards();
+    }
+
+    function canUploadPdf() {
+      return isAdminMode() || Boolean(state.data.pdfUploadPublic);
+    }
+
+    function renderPdfList() {
+      if (!state.data.pdfFiles.length) {
+        pdfList.innerHTML = `<li class="text-slate-500">저장된 PDF 파일명이 없습니다.</li>`;
+        return;
+      }
+      pdfList.innerHTML = state.data.pdfFiles.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+    }
+
+    function renderPdfUploadUi() {
+      const canUpload = canUploadPdf();
+      if (pdfUploadArea) pdfUploadArea.classList.toggle("hidden", !canUpload);
+      if (pdfUploadNotice) {
+        pdfUploadNotice.classList.toggle("hidden", canUpload);
+        pdfUploadNotice.textContent = "PDF 목록 등록은 현재 관리자만 할 수 있습니다.";
+      }
+      if (pdfUploadPublicCheck) {
+        pdfUploadPublicCheck.checked = Boolean(state.data.pdfUploadPublic);
+      }
+    }
+
+    function renderAdminSettingsPanels() {
+      const show = isAdminMode();
+      if (adminPasswordSection) adminPasswordSection.classList.toggle("hidden", !show);
+      if (adminAccountsSection) adminAccountsSection.classList.toggle("hidden", !show);
+      if (adminPdfSection) adminPdfSection.classList.toggle("hidden", !show);
+    }
+
+    function renderAdminAccounts() {
+      renderAdminSettingsPanels();
+      if (!adminAccountsSection || !adminNamesList) return;
+      if (!isAdminMode()) return;
+      const names = normalizeAdminNames(state.data.adminNames);
+      adminNamesList.innerHTML = names.length
+        ? names
+            .map(
+              n => `
+        <li class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+          <span class="font-medium">${escapeHtml(n)}</span>
+          <button type="button" data-remove-admin="${encodeURIComponent(n)}" class="shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50">제거</button>
+        </li>`
+            )
+            .join("")
+        : `<li class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">등록된 부관리자가 없습니다. 아래에서 실명을 추가하세요.</li>`;
+      adminNamesList.querySelectorAll("[data-remove-admin]").forEach(button => {
+        button.addEventListener("click", () => {
+          if (!isAdminMode()) return;
+          const n = decodeURIComponent(button.getAttribute("data-remove-admin") || "");
+          if (!n) return;
+          state.data.adminNames = normalizeAdminNames(state.data.adminNames).filter(x => x !== n);
+          if (n === (state.data.realName || "").trim()) {
+            state.data.adminSession = false;
+          }
+          saveData(state.data);
+          renderAll();
+        });
+      });
+    }
+
+    function renderAdminContent() {
+      if (!adminContentList) return;
+      if (!isAdminMode()) {
+        adminContentList.innerHTML = "";
+        return;
+      }
+
+      const rows = [];
+      const sortedText = [...state.data.textPosts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      sortedText.forEach(post => {
+        const body = post.content || "";
+        const prev = body.slice(0, 160);
+        const dots = body.length > 160 ? "…" : "";
+        rows.push({
+          t: new Date(post.createdAt).getTime(),
+          html: `
+        <div class="rounded-xl border border-slate-200 p-3">
+          <p class="text-xs font-semibold text-slate-500">일반 게시판</p>
+          <p class="mt-1 font-semibold text-slate-900">${escapeHtml(post.title)}</p>
+          <p class="mt-1 text-sm text-slate-600">${escapeHtml(prev)}${dots}</p>
+          <p class="mt-2 text-xs text-slate-500">${escapeHtml(post.author)} · ${formatDateTime(post.createdAt)}${post.pinned ? " · 공지" : ""}</p>
+          <div class="mt-2 flex flex-wrap gap-1">
+            <button type="button" data-admin-pin="${post.id}" class="rounded-lg border border-amber-300 px-2 py-1 text-xs text-amber-800 hover:bg-amber-50">${post.pinned ? "고정 해제" : "공지 고정"}</button>
+            <button type="button" data-admin-bulk-delete="text-post|${encodeURIComponent(post.id)}|${encodeURIComponent(post.author)}" class="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>
+          </div>
+        </div>
+      `
+        });
+        (post.comments || []).forEach(comment => {
+          const cbody = comment.content || "";
+          const cprev = cbody.slice(0, 120);
+          const cdots = cbody.length > 120 ? "…" : "";
+          rows.push({
+            t: new Date(comment.createdAt).getTime(),
+            html: `
+        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+          <p class="text-xs font-semibold text-slate-500">댓글 · ${escapeHtml(post.title)}</p>
+          <p class="mt-1 text-sm text-slate-700">${escapeHtml(cprev)}${cdots}</p>
+          <p class="mt-2 text-xs text-slate-500">${escapeHtml(comment.author)} · ${formatDateTime(comment.createdAt)}</p>
+          <button type="button" data-admin-bulk-delete="comment|${encodeURIComponent(post.id)}|${encodeURIComponent(comment.id)}|${encodeURIComponent(comment.author)}" class="mt-2 rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>
+        </div>
+      `
+          });
+        });
+      });
+
+      const sortedClub = [...state.data.clubPosts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      sortedClub.forEach(post => {
+        const body = post.content || "";
+        const prev = body.slice(0, 120);
+        const dots = body.length > 120 ? "…" : "";
+        rows.push({
+          t: new Date(post.createdAt).getTime(),
+          html: `
+        <div class="rounded-xl border border-slate-200 p-3">
+          <p class="text-xs font-semibold text-slate-500">동아리 게시판</p>
+          <p class="mt-1 font-semibold text-slate-900">${escapeHtml(post.title)}</p>
+          <p class="mt-1 text-sm text-slate-600">${escapeHtml(prev)}${dots}</p>
+          <p class="mt-2 text-xs text-slate-500">${escapeHtml(post.author)} · ${formatDateTime(post.createdAt)}</p>
+          <button type="button" data-admin-bulk-delete="club-post|${encodeURIComponent(post.id)}|${encodeURIComponent(post.author)}" class="mt-2 rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button>
+        </div>
+      `
+        });
+      });
+
+      rows.sort((a, b) => b.t - a.t);
+      adminContentList.innerHTML = rows.map(r => r.html).join("");
+
+      adminContentList.querySelectorAll("[data-admin-pin]").forEach(button => {
+        button.addEventListener("click", () => {
+          toggleTextPostPin(button.getAttribute("data-admin-pin"));
+        });
+      });
+
+      adminContentList.querySelectorAll("[data-admin-bulk-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          if (!isAdminMode()) return;
+          const raw = button.getAttribute("data-admin-bulk-delete") || "";
+          const parts = raw.split("|");
+          const type = parts[0];
+          if (type === "text-post") {
+            const postId = decodeURIComponent(parts[1] || "");
+            const authorEnc = parts[2] || "";
+            const post = state.data.textPosts.find(p => p.id === postId);
+            if (!post || !canDeleteAuthor(post.author)) return;
+            const author = decodeURIComponent(authorEnc) || post.author;
+            if (!confirmAdminActionOnOther(author, `「${post.title}」\n작성자: ${author}\n관리자 권한으로 삭제할까요?`)) return;
+            state.data.textPosts = state.data.textPosts.filter(p => p.id !== postId);
+          } else if (type === "comment") {
+            const postId = decodeURIComponent(parts[1] || "");
+            const commentId = decodeURIComponent(parts[2] || "");
+            const authorEnc = parts[3] || "";
+            const post = state.data.textPosts.find(p => p.id === postId);
+            const comment = post?.comments?.find(c => c.id === commentId);
+            if (!post || !comment || !canDeleteAuthor(comment.author)) return;
+            const author = decodeURIComponent(authorEnc) || comment.author;
+            if (!confirmAdminActionOnOther(author, `댓글\n작성자: ${author}\n관리자 권한으로 삭제할까요?`)) return;
+            post.comments = (post.comments || []).filter(c => c.id !== commentId);
+          } else if (type === "club-post") {
+            const postId = decodeURIComponent(parts[1] || "");
+            const authorEnc = parts[2] || "";
+            const post = state.data.clubPosts.find(p => p.id === postId);
+            if (!post || !canDeleteAuthor(post.author)) return;
+            const author = decodeURIComponent(authorEnc) || post.author;
+            if (!confirmAdminActionOnOther(author, `「${post.title}」\n작성자: ${author}\n관리자 권한으로 삭제할까요?`)) return;
+            state.data.clubPosts = state.data.clubPosts.filter(p => p.id !== postId);
+          }
+          saveData(state.data);
+          renderAll();
+          alert("관리자 권한으로 삭제되었습니다.");
+        });
+      });
+    }
+
+    function renderAdminWarnings() {
+      if (!adminWarningsList) return;
+      if (!isAdminMode()) {
+        adminWarningsList.innerHTML = "";
+        return;
+      }
+      const w = state.data.warnedUsers || {};
+      const entries = Object.entries(w)
+        .map(([user, count]) => ({ user, count: Number(count) || 0 }))
+        .filter(x => x.count > 0)
+        .sort((a, b) => b.count - a.count || a.user.localeCompare(b.user));
+      if (!entries.length) {
+        adminWarningsList.innerHTML = `<p class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">비속어 필터 경고 기록이 없습니다.</p>`;
+        return;
+      }
+      adminWarningsList.innerHTML = entries
+        .map(
+          ({ user, count }) => `
+      <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+        <p><span class="font-semibold">${escapeHtml(user)}</span> · 경고 <span class="text-amber-800">${count}</span>회</p>
+        <button type="button" data-clear-warn="${encodeURIComponent(user)}" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">경고 해제</button>
+      </div>`
+        )
+        .join("");
+      adminWarningsList.querySelectorAll("[data-clear-warn]").forEach(button => {
+        button.addEventListener("click", () => {
+          if (!isAdminMode()) return;
+          const user = decodeURIComponent(button.getAttribute("data-clear-warn") || "");
+          if (!user) return;
+          delete state.data.warnedUsers[user];
+          saveData(state.data);
+          renderAll();
+        });
+      });
+    }
+
+    function renderAdminAlerts() {
+      if (!adminAlertsList) return;
+      if (!isAdminMode()) {
+        adminAlertsList.innerHTML = "";
+        return;
+      }
+      const alerts = [...(state.data.adminAlerts || [])].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      if (!alerts.length) {
+        adminAlertsList.innerHTML = `<p class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">피드백·오류 알림이 없습니다.</p>`;
+        return;
+      }
+      const typeLabel = { feedback: "피드백", error: "오류" };
+      adminAlertsList.innerHTML = alerts
+        .map(alert => {
+          const unread = !alert.read;
+          const border = alert.type === "error" ? "border-rose-200 bg-rose-50/80" : "border-violet-200 bg-violet-50/60";
+          return `
+        <div class="rounded-xl border p-3 ${border} ${unread ? "ring-1 ring-violet-300" : "opacity-90"}">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm font-semibold ${alert.type === "error" ? "text-rose-800" : "text-violet-800"}">
+              ${escapeHtml(typeLabel[alert.type] || "알림")}${alert.auto ? " · 자동" : ""}${unread ? " · <span class='text-xs font-bold'>NEW</span>" : ""}
+            </p>
+            <div class="flex flex-wrap gap-1">
+              ${unread ? `<button type="button" data-alert-read="${alert.id}" class="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-xs hover:bg-slate-50">확인</button>` : ""}
+              <button type="button" data-alert-delete="${alert.id}" class="rounded-lg border border-red-200 bg-white px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">삭제</button>
+            </div>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">${escapeHtml(alert.author)} · ${formatDateTime(alert.createdAt)}${alert.page ? ` · ${escapeHtml(alert.page)}` : ""}</p>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-slate-800">${escapeHtml(alert.message)}</p>
+          ${alert.detail ? `<pre class="mt-2 max-h-32 overflow-auto rounded-lg bg-white/80 p-2 text-xs text-slate-600 whitespace-pre-wrap">${escapeHtml(alert.detail)}</pre>` : ""}
+        </div>
+      `;
+        })
+        .join("");
+
+      adminAlertsList.querySelectorAll("[data-alert-read]").forEach(button => {
+        button.addEventListener("click", () => {
+          const id = button.getAttribute("data-alert-read");
+          const target = state.data.adminAlerts.find(a => a.id === id);
+          if (target) target.read = true;
+          saveData(state.data);
+          renderAll();
+        });
+      });
+      adminAlertsList.querySelectorAll("[data-alert-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const id = button.getAttribute("data-alert-delete");
+          state.data.adminAlerts = state.data.adminAlerts.filter(a => a.id !== id);
+          saveData(state.data);
+          renderAll();
+        });
+      });
+    }
+
+    function renderAdminReports() {
+      if (!isAdminMode()) {
+        adminReportList.innerHTML = "";
+        return;
+      }
+
+      const reported = [];
+      state.data.textPosts.forEach(post => {
+        if (post.isReported) {
+          reported.push({
+            kind: "일반 게시글",
+            id: post.id,
+            author: post.author,
+            content: `${post.title} - ${post.content}`,
+            reportCount: post.reportCount || 0,
+            actionType: "text-post"
+          });
+        }
+        (post.comments || []).forEach(comment => {
+          if (comment.isReported) {
+            reported.push({
+              kind: "댓글",
+              id: `${post.id}:${comment.id}`,
+              author: comment.author,
+              content: comment.content,
+              reportCount: comment.reportCount || 0,
+              actionType: "comment"
+            });
+          }
+        });
+      });
+
+      state.data.clubPosts.forEach(post => {
+        if (post.isReported) {
+          reported.push({
+            kind: "동아리 게시글",
+            id: post.id,
+            author: post.author,
+            content: `${post.title} - ${post.content}`,
+            reportCount: post.reportCount || 0,
+            actionType: "club-post"
+          });
+        }
+      });
+
+      if (!reported.length) {
+        adminReportList.innerHTML = `<p class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">신고된 항목이 없습니다.</p>`;
+        return;
+      }
+
+      adminReportList.innerHTML = reported.map(item => `
+        <div class="rounded-xl border border-rose-200 bg-rose-50 p-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm font-semibold text-rose-800">${escapeHtml(item.kind)} | 신고 ${item.reportCount}회</p>
+            <button data-admin-delete="${item.actionType}:${item.id}" class="rounded-lg border border-red-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50">관리자 삭제</button>
+          </div>
+          <p class="mt-1 text-xs text-slate-600">작성자: ${escapeHtml(item.author)}</p>
+          <p class="mt-2 whitespace-pre-wrap text-sm text-slate-700">${escapeHtml(item.content)}</p>
+        </div>
+      `).join("");
+
+      adminReportList.querySelectorAll("[data-admin-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const raw = button.getAttribute("data-admin-delete");
+          const [actionType, ...rest] = String(raw).split(":");
+          const payload = rest.join(":");
+          if (actionType === "text-post") {
+            const post = state.data.textPosts.find(p => p.id === payload);
+            if (!post || !canDeleteAuthor(post.author)) return;
+            if (!confirmAdminActionOnOther(post.author, `신고된 일반 게시글\n작성자: ${post.author}\n삭제할까요?`)) return;
+            state.data.textPosts = state.data.textPosts.filter(p => p.id !== payload);
+          } else if (actionType === "club-post") {
+            const post = state.data.clubPosts.find(p => p.id === payload);
+            if (!post || !canDeleteAuthor(post.author)) return;
+            if (!confirmAdminActionOnOther(post.author, `신고된 동아리 게시글\n작성자: ${post.author}\n삭제할까요?`)) return;
+            state.data.clubPosts = state.data.clubPosts.filter(p => p.id !== payload);
+          } else if (actionType === "comment") {
+            const [postId, commentId] = payload.split(":");
+            const post = state.data.textPosts.find(item => item.id === postId);
+            const comment = post?.comments?.find(c => c.id === commentId);
+            if (!post || !comment || !canDeleteAuthor(comment.author)) return;
+            if (!confirmAdminActionOnOther(comment.author, `신고된 댓글\n작성자: ${comment.author}\n삭제할까요?`)) return;
+            post.comments = (post.comments || []).filter(c => c.id !== commentId);
+          }
+          saveData(state.data);
+          renderAll();
+          alert("관리자 권한으로 삭제되었습니다.");
+        });
+      });
+    }
+
+    function renderAll() {
+      pruneExpiredBoardPosts();
+      requireRealName();
+      renderTextPosts();
+      renderClubPosts();
+      renderCalendar();
+      renderPdfList();
+      renderPdfUploadUi();
+      renderAdminAccounts();
+      renderAdminContent();
+      renderAdminWarnings();
+      renderAdminAlerts();
+      renderAdminReports();
+      updateAdminAlertIndicators();
+    }
+
+    if (feedbackFab) {
+      feedbackFab.addEventListener("click", openFeedbackModal);
+    }
+    if (feedbackCancelBtn) {
+      feedbackCancelBtn.addEventListener("click", closeFeedbackModal);
+    }
+    if (feedbackForm) {
+      feedbackForm.addEventListener("submit", event => {
+        event.preventDefault();
+        if (!state.data.realName) return alert("실명 등록 후 피드백을 보낼 수 있습니다.");
+        const type = feedbackType?.value === "error" ? "error" : "feedback";
+        const message = (feedbackMessage?.value || "").trim();
+        if (!message) return alert("내용을 입력해주세요.");
+        if (!assertCleanText(message)) return;
+        const detail = `화면: ${currentPage}\n브라우저: ${navigator.userAgent}`;
+        pushAdminAlert({ type, message, detail, auto: false });
+        closeFeedbackModal();
+        alert("관리자에게 전달되었습니다. 감사합니다.");
+      });
+    }
+    if (goAdminAlertsBtn) {
+      goAdminAlertsBtn.addEventListener("click", () => switchPage("admin"));
+    }
+    if (markAllAlertsReadBtn) {
+      markAllAlertsReadBtn.addEventListener("click", () => {
+        if (!isAdminMode()) return;
+        (state.data.adminAlerts || []).forEach(a => {
+          a.read = true;
+        });
+        saveData(state.data);
+        renderAll();
+      });
+    }
+    if (clearReadAlertsBtn) {
+      clearReadAlertsBtn.addEventListener("click", () => {
+        if (!isAdminMode()) return;
+        state.data.adminAlerts = (state.data.adminAlerts || []).filter(a => !a.read);
+        saveData(state.data);
+        renderAll();
+      });
+    }
+
+    if (darkModeToggle) {
+      darkModeToggle.addEventListener("click", toggleDarkMode);
+    }
+    loadDarkModePreference();
+
+    saveNameBtn.addEventListener("click", () => setRealName(realNameInput.value));
+    if (adminPasswordForm) {
+      adminPasswordForm.addEventListener("submit", event => {
+        event.preventDefault();
+        if (!isAdminMode()) return;
+        const current = (adminCurrentPassword?.value || "").trim();
+        const next = (adminNewPassword?.value || "").trim();
+        const confirm = (adminNewPasswordConfirm?.value || "").trim();
+        if (!current) return alert("현재 비밀번호를 입력하세요.");
+        if (!verifyAdminLoginPassword(current)) return alert("현재 비밀번호가 올바르지 않습니다.");
+        if (next.length < 4) return alert("새 비밀번호는 4자 이상으로 설정하세요.");
+        if (next !== confirm) return alert("새 비밀번호 확인이 일치하지 않습니다.");
+        if (!assertCleanText(next)) return;
+        state.data.adminPassword = next;
+        saveData(state.data);
+        adminPasswordForm.reset();
+        alert("관리자 비밀번호가 변경되었습니다.");
+      });
+    }
+
+    if (addAdminBtn) {
+      addAdminBtn.addEventListener("click", () => {
+        if (!isAdminMode()) return;
+        const name = (adminNameInput?.value || "").trim();
+        if (!name) return alert("추가할 실명을 입력하세요.");
+        if (name.length < 2) return alert("실명은 2자 이상 입력하세요.");
+        if (!assertCleanText(name)) return;
+        const list = normalizeAdminNames(state.data.adminNames);
+        if (list.includes(name)) return alert("이미 등록된 실명입니다.");
+        list.push(name);
+        state.data.adminNames = list;
+        saveData(state.data);
+        if (adminNameInput) adminNameInput.value = "";
+        renderAll();
+      });
+    }
+    if (pdfUploadPublicCheck) {
+      pdfUploadPublicCheck.addEventListener("change", () => {
+        if (!isAdminMode()) return;
+        state.data.pdfUploadPublic = pdfUploadPublicCheck.checked;
+        saveData(state.data);
+        renderPdfUploadUi();
+      });
+    }
+    changeNameBtn.addEventListener("click", () => {
+      realNameInput.value = state.data.realName || "";
+      resetAdminLoginForm();
+      nameModal.classList.remove("hidden");
+      nameModal.classList.add("flex");
+      realNameInput.focus();
+    });
+    if (loginAsAdminCheck) {
+      loginAsAdminCheck.addEventListener("change", syncAdminLoginUi);
+    }
+    syncAdminLoginUi();
+
+    realNameInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") setRealName(realNameInput.value);
+    });
+
+    textPostForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const title = textPostTitle.value.trim();
+      const content = textPostContent.value.trim();
+      if (!title || !content) return;
+      if (!state.data.realName) return alert("실명 등록 후 작성 가능합니다.");
+      if (!assertCleanText(`${title} ${content}`)) return;
+
+      state.data.textPosts.push({
+        id: uid(),
+        title,
+        content,
+        author: state.data.realName,
+        createdAt: nowISO(),
+        comments: [],
+        isReported: false,
+        reportCount: 0,
+        pinned: false,
+        pinnedAt: ""
+      });
+      saveData(state.data);
+      textPostForm.reset();
+      renderTextPosts();
+    });
+
+    clubPostForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const title = clubPostTitle.value.trim();
+      const content = clubPostContent.value.trim();
+      if (!title || !content) return;
+      if (!state.data.realName) return alert("실명 등록 후 작성 가능합니다.");
+      if (!assertCleanText(`${title} ${content}`)) return;
+
+      const file = clubPostImage.files[0];
+      const finish = (imageData) => {
+        state.data.clubPosts.push({
+          id: uid(),
+          title,
+          content,
+          imageData: imageData || "",
+          author: state.data.realName,
+          createdAt: nowISO(),
+          isReported: false,
+          reportCount: 0
+        });
+        saveData(state.data);
+        clubPostForm.reset();
+        renderClubPosts();
+      };
+
+      if (!file) {
+        finish("");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        alert("이미지 파일만 업로드할 수 있습니다.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => finish(String(reader.result || ""));
+      reader.onerror = () => alert("이미지 업로드 중 오류가 발생했습니다.");
+      reader.readAsDataURL(file);
+    });
+
+    calendarPrev.addEventListener("click", () => {
+      if (calendarViewMonth === 0) {
+        calendarViewMonth = 11;
+        calendarViewYear -= 1;
+      } else {
+        calendarViewMonth -= 1;
+      }
+      renderCalendarGrid();
+    });
+
+    calendarNext.addEventListener("click", () => {
+      if (calendarViewMonth === 11) {
+        calendarViewMonth = 0;
+        calendarViewYear += 1;
+      } else {
+        calendarViewMonth += 1;
+      }
+      renderCalendarGrid();
+    });
+
+    calendarToday.addEventListener("click", () => {
+      const today = new Date();
+      calendarViewYear = today.getFullYear();
+      calendarViewMonth = today.getMonth();
+      setCalendarSelectedDate(toDateKey(today));
+      renderCalendar();
+    });
+
+    calendarDate.addEventListener("change", () => {
+      if (!calendarDate.value) return;
+      setCalendarSelectedDate(calendarDate.value);
+      const picked = parseDateKey(calendarDate.value);
+      calendarViewYear = picked.getFullYear();
+      calendarViewMonth = picked.getMonth();
+      renderCalendar();
+    });
+
+    calendarForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const date = calendarDate.value || calendarSelectedDate;
+      const text = calendarText.value.trim();
+      if (!date || !text) return;
+      if (!state.data.realName) return alert("실명 등록 후 작성 가능합니다.");
+      if (!assertCleanText(text)) return;
+
+      state.data.calendarEvents.push({
+        id: uid(),
+        date,
+        text,
+        author: state.data.realName,
+        updatedAt: nowISO()
+      });
+      saveData(state.data);
+      calendarText.value = "";
+      setCalendarSelectedDate(date);
+      const picked = parseDateKey(date);
+      calendarViewYear = picked.getFullYear();
+      calendarViewMonth = picked.getMonth();
+      renderCalendar({ flashDate: date });
+    });
+
+    const DICE_PIP_LAYOUT = {
+      1: [4],
+      2: [0, 8],
+      3: [0, 4, 8],
+      4: [0, 2, 6, 8],
+      5: [0, 2, 4, 6, 8],
+      6: [0, 2, 3, 5, 6, 8]
+    };
+
+    function initDiceVisual() {
+      if (!diceVisual) return;
+      diceVisual.innerHTML = "";
+      for (let i = 0; i < 9; i += 1) {
+        const pip = document.createElement("div");
+        pip.className = "dice-pip";
+        pip.dataset.idx = String(i);
+        diceVisual.appendChild(pip);
+      }
+      setDiceFace(1);
+    }
+
+    function setDiceFace(value) {
+      if (!diceVisual) return;
+      const on = DICE_PIP_LAYOUT[value] || [];
+      diceVisual.querySelectorAll(".dice-pip").forEach((pip, i) => {
+        pip.classList.toggle("on", on.includes(i));
+      });
+    }
+
+    const LADDER_ROWS = 12;
+    const LADDER_COL_W = 52;
+    const LADDER_TOP = 34;
+    const LADDER_ROW_H = 22;
+    const LADDER_BOTTOM = 36;
+    const LADDER_PAD_X = 20;
+
+    function ladderColCenterX(colIndex, numCols) {
+      return LADDER_PAD_X + colIndex * LADDER_COL_W + LADDER_COL_W / 2;
+    }
+
+    function ladderTotalWidth(numCols) {
+      return LADDER_PAD_X * 2 + numCols * LADDER_COL_W;
+    }
+
+    function ladderTotalHeight() {
+      return LADDER_TOP + LADDER_ROWS * LADDER_ROW_H + LADDER_BOTTOM;
+    }
+
+    function buildRandomBridges(numCols, rows) {
+      const maxB = numCols - 2;
+      const bridges = [];
+      for (let r = 0; r < rows; r += 1) {
+        bridges.push(Math.floor(Math.random() * (maxB + 1)));
+      }
+      return bridges;
+    }
+
+    function traceFinalColumn(startCol, bridges) {
+      let c = startCol;
+      bridges.forEach(b => {
+        if (c === b) c = b + 1;
+        else if (c === b + 1) c = b;
+      });
+      return c;
+    }
+
+    function buildLadderPathPoints(startCol, bridges, numCols) {
+      const pts = [];
+      let c = startCol;
+      let y = LADDER_TOP;
+      pts.push({ x: ladderColCenterX(c, numCols), y });
+      bridges.forEach(b => {
+        y += LADDER_ROW_H / 2;
+        pts.push({ x: ladderColCenterX(c, numCols), y });
+        let next = c;
+        if (c === b) next = b + 1;
+        else if (c === b + 1) next = b;
+        if (next !== c) {
+          pts.push({ x: ladderColCenterX(next, numCols), y });
+          c = next;
+        }
+        y += LADDER_ROW_H / 2;
+        pts.push({ x: ladderColCenterX(c, numCols), y });
+      });
+      return pts;
+    }
+
+    function updateLadderWinCountUI() {
+      if (!ladderWinCount || !ladderWinCountHint || !ladderParticipants) return;
+      const names = ladderParticipants.value
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean);
+      const n = names.length;
+      if (n < 2) {
+        ladderWinCount.removeAttribute("max");
+        ladderWinCountHint.textContent = "참가자 2명 이상이면 1~(인원−1)까지 설정할 수 있어요.";
+        return;
+      }
+      ladderWinCount.min = "1";
+      ladderWinCount.max = String(n - 1);
+      ladderWinCountHint.textContent = `지금 ${n}명 → 당첨은 1~${n - 1}칸(나머지 생존).`;
+      let v = parseInt(ladderWinCount.value, 10);
+      if (!Number.isFinite(v)) v = 1;
+      if (v > n - 1) ladderWinCount.value = String(n - 1);
+      if (v < 1) ladderWinCount.value = "1";
+    }
+
+    ladderParticipants.addEventListener("input", updateLadderWinCountUI);
+
+    function buildBottomOutcomes(numCols, winCountRaw) {
+      if (numCols < 1) return [];
+      if (numCols === 1) return ["당첨"];
+      let k = Number(winCountRaw);
+      if (!Number.isFinite(k)) k = 1;
+      k = Math.floor(k);
+      k = Math.max(1, Math.min(numCols - 1, k));
+      const arr = [];
+      for (let i = 0; i < k; i += 1) arr.push("당첨");
+      for (let i = 0; i < numCols - k; i += 1) arr.push("생존");
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+      }
+      return arr;
+    }
+
+    let currentLadder = null;
+
+    function renderLadderSvg(names, bridges, bottomOutcomes) {
+      const n = names.length;
+      const W = ladderTotalWidth(n);
+      const H = ladderTotalHeight();
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      svg.setAttribute("width", String(Math.min(W, 720)));
+      svg.classList.add("mx-auto", "block");
+
+      for (let i = 0; i < n; i += 1) {
+        const x = ladderColCenterX(i, n);
+        const y1 = LADDER_TOP;
+        const y2 = LADDER_TOP + LADDER_ROWS * LADDER_ROW_H;
+        const line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", String(x));
+        line.setAttribute("y1", String(y1));
+        line.setAttribute("x2", String(x));
+        line.setAttribute("y2", String(y2));
+        line.setAttribute("stroke", "#cbd5e1");
+        line.setAttribute("stroke-width", "4");
+        line.setAttribute("stroke-linecap", "round");
+        svg.appendChild(line);
+      }
+
+      bridges.forEach((b, r) => {
+        const y = LADDER_TOP + r * LADDER_ROW_H + LADDER_ROW_H / 2;
+        const line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", String(ladderColCenterX(b, n)));
+        line.setAttribute("y1", String(y));
+        line.setAttribute("x2", String(ladderColCenterX(b + 1, n)));
+        line.setAttribute("y2", String(y));
+        line.setAttribute("stroke", "#64748b");
+        line.setAttribute("stroke-width", "5");
+        line.setAttribute("stroke-linecap", "round");
+        svg.appendChild(line);
+      });
+
+      names.forEach((name, i) => {
+        const g = document.createElementNS(svgNS, "g");
+        g.setAttribute("class", "ladder-name-btn");
+        g.setAttribute("data-ladder-col", String(i));
+        g.style.cursor = "pointer";
+
+        const hit = document.createElementNS(svgNS, "rect");
+        hit.setAttribute("class", "ladder-name-hit");
+        hit.setAttribute("x", String(ladderColCenterX(i, n) - 30));
+        hit.setAttribute("y", "2");
+        hit.setAttribute("width", "60");
+        hit.setAttribute("height", "26");
+        hit.setAttribute("rx", "8");
+
+        const text = document.createElementNS(svgNS, "text");
+        text.setAttribute("x", String(ladderColCenterX(i, n)));
+        text.setAttribute("y", "20");
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("font-size", "11");
+        text.setAttribute("font-weight", "700");
+        text.setAttribute("fill", "#0f172a");
+        text.textContent = name.length > 6 ? `${name.slice(0, 5)}…` : name;
+
+        g.appendChild(hit);
+        g.appendChild(text);
+        svg.appendChild(g);
+      });
+
+      const baseY = LADDER_TOP + LADDER_ROWS * LADDER_ROW_H + 18;
+      bottomOutcomes.forEach((out, i) => {
+        const text = document.createElementNS(svgNS, "text");
+        text.setAttribute("x", String(ladderColCenterX(i, n)));
+        text.setAttribute("y", String(baseY));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("font-size", "11");
+        text.setAttribute("font-weight", "800");
+        text.setAttribute("fill", out === "당첨" ? "#c2410c" : "#1d4ed8");
+        text.textContent = out;
+        svg.appendChild(text);
+      });
+
+      const dot = document.createElementNS(svgNS, "circle");
+      dot.setAttribute("class", "ladder-path-dot");
+      dot.setAttribute("r", "9");
+      dot.setAttribute("fill", "#059669");
+      dot.setAttribute("cx", String(ladderColCenterX(0, n)));
+      dot.setAttribute("cy", String(LADDER_TOP));
+      dot.setAttribute("opacity", "0");
+      svg.appendChild(dot);
+
+      return { svg, dot };
+    }
+
+    function onLadderSvgClick(event) {
+      const hit = event.target && event.target.closest && event.target.closest("[data-ladder-col]");
+      if (!hit || !currentLadder) return;
+      if (ladderAnimTimer) return;
+      const col = Number(hit.getAttribute("data-ladder-col"));
+      if (Number.isNaN(col)) return;
+      runLadderAnimationForColumn(col);
+    }
+
+    function runLadderAnimationForColumn(startCol) {
+      if (!currentLadder || !currentLadder.dot) return;
+      const { names, bridges, bottomOutcomes, dot } = currentLadder;
+      const n = names.length;
+      const pts = buildLadderPathPoints(startCol, bridges, n);
+      const endCol = traceFinalColumn(startCol, bridges);
+      const outcome = bottomOutcomes[endCol];
+
+      dot.setAttribute("opacity", "1");
+      dot.setAttribute("cx", String(pts[0].x));
+      dot.setAttribute("cy", String(pts[0].y));
+
+      let idx = 0;
+      ladderAnimTimer = setInterval(() => {
+        idx += 1;
+        if (idx >= pts.length) {
+          clearInterval(ladderAnimTimer);
+          ladderAnimTimer = null;
+          const outcomeClass = outcome === "당첨" ? "text-amber-800" : "text-blue-800";
+          ladderResult.innerHTML = `<strong>${escapeHtml(names[startCol])}</strong>님의 결과: <span class="text-lg font-bold ${outcomeClass}">${outcome}</span> <span class="text-slate-500">(도착 ${endCol + 1}번 칸)</span>`;
+          return;
+        }
+        dot.setAttribute("cx", String(pts[idx].x));
+        dot.setAttribute("cy", String(pts[idx].y));
+      }, 130);
+    }
+
+    let diceRollTimer = null;
+    let ladderAnimTimer = null;
+    let coinFlipTimer = null;
+    let reactionState = "idle";
+    let reactionTimeout = null;
+    let reactionReadyAt = 0;
+
+    const TEAM_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    const TEAM_ACCENT = [
+      "border-violet-300 bg-violet-50 dark:border-violet-600 dark:bg-violet-950",
+      "border-sky-300 bg-sky-50 dark:border-sky-600 dark:bg-sky-950",
+      "border-emerald-300 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950",
+      "border-rose-300 bg-rose-50 dark:border-rose-600 dark:bg-rose-950",
+      "border-amber-300 bg-amber-50 dark:border-amber-600 dark:bg-amber-950",
+      "border-fuchsia-300 bg-fuchsia-50 dark:border-fuchsia-600 dark:bg-fuchsia-950",
+      "border-cyan-300 bg-cyan-50 dark:border-cyan-600 dark:bg-cyan-950",
+      "border-lime-300 bg-lime-50 dark:border-lime-600 dark:bg-lime-950"
+    ];
+
+    function shuffleArray(items) {
+      const arr = [...items];
+      for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function setCoinFace(isHeads) {
+      if (!coinVisual) return;
+      coinVisual.textContent = isHeads ? "앞" : "뒤";
+      coinVisual.classList.toggle("coin-heads", isHeads);
+      coinVisual.classList.toggle("coin-tails", !isHeads);
+    }
+
+    function setReactionUi(state, btnText, hintText) {
+      reactionState = state;
+      if (reactionBtn) {
+        reactionBtn.disabled = false;
+        reactionBtn.textContent = btnText;
+        reactionBtn.className = `reaction-btn reaction-${state} mt-4`;
+      }
+      if (reactionHint && hintText) reactionHint.textContent = hintText;
+    }
+
+    function clearReactionTimer() {
+      if (reactionTimeout) {
+        clearTimeout(reactionTimeout);
+        reactionTimeout = null;
+      }
+    }
+
+    function showReactionResult(html) {
+      if (!reactionResult) return;
+      reactionResult.innerHTML = html;
+      reactionResult.classList.remove("hidden");
+    }
+
+    function hideReactionResult() {
+      reactionResult?.classList.add("hidden");
+    }
+
+    function startReactionTest() {
+      clearReactionTimer();
+      hideReactionResult();
+      setReactionUi("waiting", "기다리세요…", "초록색이 될 때까지 클릭하지 마세요.");
+      const delay = 1200 + Math.floor(Math.random() * 3800);
+      reactionTimeout = setTimeout(() => {
+        reactionTimeout = null;
+        reactionReadyAt = Date.now();
+        setReactionUi("ready", "지금 클릭!", "초록색입니다. 최대한 빨리 누르세요!");
+      }, delay);
+    }
+
+    function finishReactionEarly() {
+      clearReactionTimer();
+      setReactionUi("early", "다시 시작", "너무 빨랐어요. 초록색이 된 뒤에 눌러야 합니다.");
+      showReactionResult(`<span class="font-bold text-rose-700 dark:text-rose-300">실패</span> — 신호 전에 눌렀습니다.`);
+    }
+
+    function finishReactionSuccess(ms) {
+      let comment = "빠른 편이에요!";
+      if (ms >= 400) comment = "조금 여유 있게 반응했어요.";
+      else if (ms >= 280) comment = "평균적인 반응 속도예요.";
+      else if (ms < 150) comment = "정말 빠릅니다!";
+      setReactionUi("done", "다시 시작", "버튼을 눌러 한 번 더 도전할 수 있습니다.");
+      showReactionResult(`반응 속도: <span class="text-lg font-bold">${ms}ms</span> — ${comment}`);
+    }
+
+    function splitIntoTeams(names, count) {
+      const shuffled = shuffleArray(names);
+      const teams = Array.from({ length: count }, () => []);
+      shuffled.forEach((name, index) => {
+        teams[index % count].push(name);
+      });
+      return teams;
+    }
+
+    function renderTeamResult(teams) {
+      if (!teamResult) return;
+      teamResult.innerHTML = teams.map((members, index) => {
+        const label = TEAM_LABELS[index] || String(index + 1);
+        const accent = TEAM_ACCENT[index % TEAM_ACCENT.length];
+        const list = members.length
+          ? members.map(name => escapeHtml(name)).join(", ")
+          : "<span class=\"text-slate-500\">(없음)</span>";
+        return `
+          <div class="team-block ${accent}">
+            <p class="text-sm font-bold">팀 ${label} <span class="font-normal text-slate-500">(${members.length}명)</span></p>
+            <p class="mt-1 text-sm">${list}</p>
+          </div>
+        `;
+      }).join("");
+    }
+
+    if (flipCoinBtn) {
+      flipCoinBtn.addEventListener("click", () => {
+        if (flipCoinBtn.disabled) return;
+        if (coinFlipTimer) clearInterval(coinFlipTimer);
+        flipCoinBtn.disabled = true;
+        coinVisual?.classList.add("flipping");
+        if (coinResult) coinResult.textContent = "동전이 돌아가는 중…";
+
+        let step = 0;
+        const totalSteps = 12 + Math.floor(Math.random() * 6);
+        coinFlipTimer = setInterval(() => {
+          setCoinFace(Math.random() < 0.5);
+          step += 1;
+          if (step >= totalSteps) {
+            clearInterval(coinFlipTimer);
+            coinFlipTimer = null;
+            const isHeads = Math.random() < 0.5;
+            setCoinFace(isHeads);
+            coinVisual?.classList.remove("flipping");
+            const label = isHeads ? "앞" : "뒤";
+            if (coinResult) {
+              coinResult.innerHTML = `<span class="text-lg font-bold">${label}</span>이(가) 나왔습니다!`;
+            }
+            flipCoinBtn.disabled = false;
+          }
+        }, 90);
+      });
+    }
+
+    if (splitTeamsBtn) {
+      splitTeamsBtn.addEventListener("click", () => {
+        const names = (teamParticipants?.value || "")
+          .split(",")
+          .map(name => name.trim())
+          .filter(Boolean);
+        if (names.length < 2) {
+          alert("팀 나누기는 최소 2명 이상 입력해주세요.");
+          return;
+        }
+        let count = parseInt(teamCount?.value || "2", 10);
+        if (Number.isNaN(count) || count < 2) count = 2;
+        if (count > 8) count = 8;
+        if (count > names.length) {
+          alert(`참가자가 ${names.length}명이면 팀은 최대 ${names.length}개까지 가능합니다.`);
+          return;
+        }
+        if (teamCount) teamCount.value = String(count);
+        const teams = splitIntoTeams(names, count);
+        renderTeamResult(teams);
+      });
+    }
+
+    if (reactionBtn) {
+      reactionBtn.addEventListener("click", () => {
+        if (reactionState === "idle" || reactionState === "done" || reactionState === "early") {
+          startReactionTest();
+          return;
+        }
+        if (reactionState === "waiting") {
+          finishReactionEarly();
+          return;
+        }
+        if (reactionState === "ready") {
+          const ms = Math.max(0, Date.now() - reactionReadyAt);
+          finishReactionSuccess(ms);
+        }
+      });
+    }
+
+    rollDiceBtn.addEventListener("click", () => {
+      if (!rollDiceBtn || rollDiceBtn.disabled) return;
+      if (diceRollTimer) clearInterval(diceRollTimer);
+      rollDiceBtn.disabled = true;
+      diceVisual?.classList.add("rolling");
+      diceResult.textContent = "주사위가 굴러가는 중…";
+
+      let step = 0;
+      const totalSteps = 14 + Math.floor(Math.random() * 6);
+      diceRollTimer = setInterval(() => {
+        setDiceFace(Math.floor(Math.random() * 6) + 1);
+        step += 1;
+        if (step >= totalSteps) {
+          clearInterval(diceRollTimer);
+          diceRollTimer = null;
+          const value = Math.floor(Math.random() * 6) + 1;
+          setDiceFace(value);
+          diceVisual?.classList.remove("rolling");
+          diceResult.innerHTML = `<span class="text-lg font-bold">${value}</span>이(가) 나왔습니다!`;
+          rollDiceBtn.disabled = false;
+        }
+      }, 85);
+    });
+
+    runLadderBtn.addEventListener("click", () => {
+      if (!runLadderBtn || runLadderBtn.disabled) return;
+      const names = ladderParticipants.value
+        .split(",")
+        .map(name => name.trim())
+        .filter(Boolean);
+      if (names.length < 2) {
+        alert("사다리는 최소 2명 이상 입력해주세요.");
+        return;
+      }
+
+      if (ladderAnimTimer) clearInterval(ladderAnimTimer);
+      ladderAnimTimer = null;
+      currentLadder = null;
+
+      ladderBoard.innerHTML = "";
+      ladderResult.textContent = "사다리를 그리는 중…";
+
+      const bridges = buildRandomBridges(names.length, LADDER_ROWS);
+      const rawWin = ladderWinCount ? ladderWinCount.value : "1";
+      const bottomOutcomes = buildBottomOutcomes(names.length, rawWin);
+      const appliedWin = bottomOutcomes.filter(o => o === "당첨").length;
+      const { svg, dot } = renderLadderSvg(names, bridges, bottomOutcomes);
+      svg.addEventListener("click", onLadderSvgClick);
+      ladderBoard.appendChild(svg);
+
+      currentLadder = { names, bridges, bottomOutcomes, svg, dot };
+      if (ladderWinCount) ladderWinCount.value = String(appliedWin);
+      ladderResult.textContent = `당첨 ${appliedWin}칸 · 생존 ${names.length - appliedWin}칸으로 아래에 배치했습니다. 위쪽 이름을 클릭하세요.`;
+    });
+
+    savePdfBtn.addEventListener("click", () => {
+      if (!canUploadPdf()) {
+        alert("PDF 업로드 권한이 없습니다.");
+        return;
+      }
+      if (!state.data.realName) {
+        alert("실명 등록 후 업로드할 수 있습니다.");
+        return;
+      }
+      const files = Array.from(pdfInput.files || []);
+      if (!files.length) {
+        alert("PDF 파일을 선택해주세요.");
+        return;
+      }
+      const invalid = files.find(file => file.type !== "application/pdf");
+      if (invalid) {
+        alert("PDF 파일만 선택할 수 있습니다.");
+        return;
+      }
+      state.data.pdfFiles = files.map(file => file.name);
+      saveData(state.data);
+      renderPdfList();
+      alert("PDF 파일 목록이 저장되었습니다.");
+    });
+
+    window.addEventListener("storage", event => {
+      if (event.key !== APP_KEY) return;
+      const previousData = state.data;
+      const nextData = loadData();
+      syncWhiteboardsFromStorage(previousData, nextData);
+      state.data = nextData;
+      renderAll();
+    });
+
+    document.querySelectorAll("#appNav [data-page]").forEach(button => {
+      button.addEventListener("click", () => switchPage(button.getAttribute("data-page")));
+    });
+
+    window.onerror = (message, source, lineno, colno, error) => {
+      reportAutoError(String(message), `${source}:${lineno}:${colno}\n${error?.stack || ""}`);
+    };
+    window.addEventListener("unhandledrejection", event => {
+      const reason = event.reason;
+      const detail = reason?.stack || (typeof reason === "object" ? JSON.stringify(reason) : String(reason));
+      reportAutoError("처리되지 않은 오류(Promise)", detail);
+    });
+
+    createWhiteboards();
+    initDiceVisual();
+    renderAll();
+
+    try {
+      const savedPage = localStorage.getItem("jgwCurrentPage");
+      if (savedPage && PAGE_IDS.includes(savedPage) && document.getElementById(`page-${savedPage}`)) {
+        if (savedPage !== "admin" || isAdminMode()) switchPage(savedPage);
+        else switchPage("home");
+      } else {
+        switchPage("home");
+      }
+    } catch (error) {
+      switchPage("home");
+    }
+  </script>
+</body>
+</html>
