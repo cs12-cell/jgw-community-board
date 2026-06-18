@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "shared": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

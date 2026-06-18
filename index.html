@@ -10,6 +10,8 @@
     } catch (e) { /* ignore */ }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script>
     tailwind.config = { darkMode: "class" };
   </script>
@@ -486,6 +488,7 @@
           <span class="font-medium">현재 사용자:</span>
           <span id="currentUserName" class="font-bold text-blue-700">-</span>
           <span id="adminBadge" class="hidden rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-200">관리자 모드</span>
+          <span id="cloudSyncBadge" class="hidden rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" title="실시간 동기화 상태">동기화</span>
           <button type="button" id="darkModeToggle" class="rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700" title="다크 모드">🌙</button>
           <button id="changeNameBtn" class="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-xs hover:bg-white dark:border-slate-600 dark:hover:bg-slate-700">변경</button>
         </div>
@@ -512,7 +515,7 @@
     <div id="page-home" class="app-page space-y-6">
         <section class="card p-5">
           <h2 class="text-xl font-bold">일반 게시판 (댓글 포함)</h2>
-          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">글은 등록 후 <strong>14일</strong>이 지나면 자동으로 삭제됩니다. 공지 고정 글은 <strong>30일</strong>까지 유지됩니다. 학사 일정은 상단 <strong>달력</strong> 탭에서 확인하세요.</p>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">글은 등록 후 <strong>14일</strong>이 지나면 자동으로 삭제됩니다. 공지 고정 글은 <strong>30일</strong>까지 유지됩니다. 학사 일정은 상단 <strong>달력</strong> 탭에서 확인하세요. 글·댓글은 연결된 기기끼리 <strong>실시간으로</strong> 동기화됩니다.</p>
           <form id="textPostForm" class="mt-4 grid grid-cols-1 gap-3">
             <input id="textPostTitle" type="text" maxlength="80" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="제목" />
             <textarea id="textPostContent" rows="4" maxlength="1200" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="내용"></textarea>
@@ -559,7 +562,7 @@
     <div id="page-club" class="app-page hidden space-y-6">
         <section class="card p-5">
           <h2 class="text-xl font-bold">동아리 자랑 게시판 (사진 업로드)</h2>
-          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">사진 글도 등록 후 <strong>14일</strong>이 지나면 자동으로 삭제됩니다.</p>
+          <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">사진 글도 등록 후 <strong>14일</strong>이 지나면 자동으로 삭제됩니다. 글은 연결된 기기끼리 <strong>실시간으로</strong> 동기화됩니다.</p>
           <form id="clubPostForm" class="mt-4 grid grid-cols-1 gap-3">
             <input id="clubPostTitle" type="text" maxlength="80" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="제목" />
             <textarea id="clubPostContent" rows="3" maxlength="700" required class="rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" placeholder="활동 소개"></textarea>
@@ -574,7 +577,7 @@
         <section class="card p-5">
           <h2 class="text-xl font-bold">화이트보드</h2>
           <p class="mt-1 text-sm text-slate-600">
-            위는 큰 그림판, 아래는 작은 그림판 2개입니다. 펜·지우개로 그린 뒤 [이 그림판 공유하기]를 누르면 다른 창에 스냅샷으로 동기화됩니다.
+            위는 큰 그림판, 아래는 작은 그림판 2개입니다. 펜·지우개로 그리면 그림이 자동으로 공유되고, 다른 사람 화면에도 실시간으로 반영됩니다. [이 그림판 공유하기]를 눌러 수동으로 다시 보낼 수도 있습니다.
           </p>
           <div id="whiteboardWrap" class="mt-4"></div>
         </section>
@@ -758,6 +761,17 @@
   <script>
     const APP_KEY = "jgwCommunityData_v1";
     const DARK_MODE_KEY = "jgwDarkMode";
+    /** Firebase 콘솔에서 Realtime Database를 만든 뒤 아래 값을 채우세요. databaseURL이 있으면 실시간 동기화가 켜집니다. */
+    const FIREBASE_CONFIG = {
+      apiKey: "",
+      authDomain: "",
+      databaseURL: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: ""
+    };
+    const CLOUD_SHARED_PATH = "shared";
     /** 일반·동아리 게시글 자동 삭제 (등록일 기준, 일) */
     const POST_RETENTION_DAYS = 14;
     /** 공지 고정 글 자동 삭제 (등록일 기준, 일) */
@@ -1065,8 +1079,153 @@
       }
     }
 
+    let cloudDb = null;
+    let cloudReady = false;
+    let suppressCloudPush = false;
+    let lastCloudRevision = 0;
+    let cloudPushTimer = null;
+    const boardPushTimers = {};
+
+    function isCloudEnabled() {
+      return Boolean(
+        FIREBASE_CONFIG?.databaseURL &&
+        typeof firebase !== "undefined"
+      );
+    }
+
+    function extractSharedPayload(data) {
+      return {
+        revision: Date.now(),
+        updatedBy: String(data?.realName || "").trim(),
+        textPosts: data?.textPosts || [],
+        clubPosts: data?.clubPosts || [],
+        whiteboards: data?.whiteboards || defaultData().whiteboards,
+        calendarEvents: data?.calendarEvents || [],
+        pdfFiles: data?.pdfFiles || [],
+        pdfUploadPublic: Boolean(data?.pdfUploadPublic),
+        warnedUsers: data?.warnedUsers && typeof data.warnedUsers === "object" ? data.warnedUsers : {},
+        adminNames: data?.adminNames || [],
+        adminPassword: String(data?.adminPassword || "").trim() || DEFAULT_ADMIN_PASSWORD,
+        adminAlerts: data?.adminAlerts || []
+      };
+    }
+
+    function updateCloudStatus(mode) {
+      const badge = document.getElementById("cloudSyncBadge");
+      if (!badge) return;
+      if (!isCloudEnabled()) {
+        badge.classList.add("hidden");
+        return;
+      }
+      badge.classList.remove("hidden");
+      if (mode === "connected") {
+        badge.textContent = "실시간 연결됨";
+        badge.className = "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200";
+      } else if (mode === "error") {
+        badge.textContent = "동기화 오류";
+        badge.className = "rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800 dark:bg-rose-950 dark:text-rose-200";
+      } else {
+        badge.textContent = "동기화 중…";
+        badge.className = "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-100";
+      }
+    }
+
+    function applySharedPayload(shared) {
+      if (!shared || typeof shared !== "object" || suppressCloudPush) return;
+      const revision = Number(shared.revision || 0);
+      if (revision && revision <= lastCloudRevision) return;
+
+      suppressCloudPush = true;
+      lastCloudRevision = revision || Date.now();
+      const prev = state.data;
+
+      state.data.textPosts = (shared.textPosts || []).map(normalizeTextPost);
+      state.data.clubPosts = (shared.clubPosts || []).map(normalizeClubPost);
+      state.data.whiteboards = normalizeWhiteboards(shared.whiteboards);
+      state.data.calendarEvents = Array.isArray(shared.calendarEvents) ? shared.calendarEvents : [];
+      state.data.pdfFiles = Array.isArray(shared.pdfFiles) ? shared.pdfFiles : [];
+      state.data.pdfUploadPublic = Boolean(shared.pdfUploadPublic);
+      state.data.warnedUsers = shared.warnedUsers && typeof shared.warnedUsers === "object" ? shared.warnedUsers : {};
+      state.data.adminNames = normalizeAdminNames(shared.adminNames);
+      state.data.adminPassword = String(shared.adminPassword || "").trim() || DEFAULT_ADMIN_PASSWORD;
+      state.data.adminAlerts = (shared.adminAlerts || []).map(normalizeAdminAlert);
+
+      if (state.data.realName && state.data.adminNames.includes(state.data.realName)) {
+        state.data.adminSession = true;
+      }
+
+      localStorage.setItem(APP_KEY, JSON.stringify(state.data));
+      pruneExpiredBoardPosts();
+      syncWhiteboardsFromStorage(prev, state.data);
+      renderTextPosts();
+      renderClubPosts();
+      renderCalendar();
+      renderPdfList();
+      renderPdfUploadUi();
+      renderAdminAccounts();
+      renderAdminContent();
+      renderAdminWarnings();
+      renderAdminAlerts();
+      renderAdminReports();
+      updateAdminAlertIndicators();
+      requireRealName();
+      suppressCloudPush = false;
+      updateCloudStatus("connected");
+    }
+
+    function pushToCloud() {
+      if (!cloudDb || suppressCloudPush || !cloudReady) return;
+      const payload = extractSharedPayload(state.data);
+      lastCloudRevision = payload.revision;
+      cloudDb.ref(CLOUD_SHARED_PATH).set(payload).catch(error => {
+        console.error("cloud push failed:", error);
+        updateCloudStatus("error");
+      });
+    }
+
+    function scheduleCloudPush() {
+      if (!cloudReady || suppressCloudPush || !isCloudEnabled()) return;
+      clearTimeout(cloudPushTimer);
+      cloudPushTimer = setTimeout(pushToCloud, 280);
+    }
+
+    function initCloudSync() {
+      if (!isCloudEnabled()) return;
+      updateCloudStatus("syncing");
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        cloudDb = firebase.database();
+        cloudDb.ref(CLOUD_SHARED_PATH).on(
+          "value",
+          snapshot => {
+            const value = snapshot.val();
+            if (value) applySharedPayload(value);
+            else if (cloudReady) updateCloudStatus("connected");
+          },
+          error => {
+            console.error("cloud listen failed:", error);
+            updateCloudStatus("error");
+          }
+        );
+        cloudDb.ref(CLOUD_SHARED_PATH).once("value").then(snapshot => {
+          const value = snapshot.val();
+          if (value) applySharedPayload(value);
+          else pushToCloud();
+          cloudReady = true;
+          updateCloudStatus("connected");
+        }).catch(error => {
+          console.error("cloud init failed:", error);
+          updateCloudStatus("error");
+        });
+      } catch (error) {
+        console.error("cloud setup failed:", error);
+        updateCloudStatus("error");
+      }
+    }
+
     function saveData(data) {
       localStorage.setItem(APP_KEY, JSON.stringify(data));
+      scheduleCloudPush();
     }
 
     function containsBadWords(text) {
@@ -1841,9 +2000,9 @@
       });
     }
 
-    function shareBoard(boardId) {
+    function pushBoardSnapshot(boardId, options = {}) {
       if (!state.data.realName) {
-        alert("실명 등록 후 공유할 수 있습니다.");
+        if (!options.silent) alert("실명 등록 후 공유할 수 있습니다.");
         return;
       }
       const canvas = document.getElementById(boardId);
@@ -1851,14 +2010,27 @@
 
       const updatedAt = nowISO();
       state.data.whiteboards[boardId] = {
-        imageData: canvas.toDataURL("image/png"),
+        imageData: canvas.toDataURL("image/jpeg", 0.58),
         author: state.data.realName,
         updatedAt
       };
       lastWhiteboardSync[boardId] = updatedAt;
       saveData(state.data);
       updateBoardMeta(boardId);
-      alert(`${getBoardNumber(boardId)}번 그림판이 공유되었습니다.`);
+      if (!options.silent) {
+        alert(`${getBoardNumber(boardId)}번 그림판이 공유되었습니다.`);
+      }
+    }
+
+    function scheduleBoardCloudPush(boardId) {
+      clearTimeout(boardPushTimers[boardId]);
+      boardPushTimers[boardId] = setTimeout(() => {
+        pushBoardSnapshot(boardId, { silent: true });
+      }, 420);
+    }
+
+    function shareBoard(boardId) {
+      pushBoardSnapshot(boardId, { silent: false });
     }
 
     function applyBoardDrawTool(ctx, drawState) {
@@ -1956,6 +2128,7 @@
         function end() {
           if (!drawState.isDrawing) return;
           drawState.isDrawing = false;
+          scheduleBoardCloudPush(boardId);
         }
 
         canvas.addEventListener("mousedown", start);
@@ -1983,6 +2156,7 @@
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           const drawState = state.drawing[boardId];
           if (drawState) applyBoardDrawTool(ctx, drawState);
+          scheduleBoardCloudPush(boardId);
         });
       });
 
@@ -3149,6 +3323,7 @@
     createWhiteboards();
     initDiceVisual();
     renderAll();
+    initCloudSync();
 
     try {
       const savedPage = localStorage.getItem("jgwCurrentPage");
